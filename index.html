@@ -518,6 +518,7 @@
   window.currentUser = null;
   window.userProfile = null;
   let isCreatingAccount = false;
+  const processingPending = new Set();
 
   const sanitize = (str) => String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
@@ -649,7 +650,6 @@
       }
       
       try {
-        // Direct query to /users to check if walletId is taken
         const usersRef = ref(db, 'users');
         const walletQuery = query(usersRef, orderByChild('walletId'), equalTo(wid));
         const snap = await get(walletQuery);
@@ -800,7 +800,7 @@
         const isOutgoing = tx.fromUid === uid;
         const amtColorClass = isOutgoing ? "tx-out" : "tx-in";
         const sign = isOutgoing ? "-" : "+";
-        const title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : (tx.type === 'request' ? `Requested from #${sanitize(tx.fromWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`);
+        const title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : (tx.type === 'request' ? `Requested from #${sanitize(tx.toWalletId || tx.fromWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`);
         const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
 
         listEl.innerHTML += `
@@ -829,7 +829,7 @@
         Object.keys(data).forEach(txKey => {
           const tx = data[txKey];
           listEl.innerHTML += `
-            <div class="tx-item">
+            <div class="tx-item" id="pending-item-${txKey}">
               <div class="tx-info">
                 <span class="tx-title">Incoming from #${sanitize(tx.fromWalletId)}</span>
                 <span class="tx-date">${tx.amount} $VLC</span>
@@ -897,7 +897,6 @@
     switchView('view-action');
   };
 
-  // Modern Query Lookup on /users by walletId
   window.validateTargetAndProceed = async () => {
     const wid = String(document.getElementById('act-target-id').value).trim();
     const errEl = document.getElementById('act-error');
@@ -1008,12 +1007,20 @@
         errEl.innerText = "Transfer failed: " + e.message;
       }
     } else {
-      await push(ref(db, 'transactions'), {
-        fromUid: targetUserData.uid, fromWalletId: targetUserData.walletId,
-        toUid: myUid, toWalletId: window.userProfile.walletId,
-        amount: amt, type: 'request', timestamp: Date.now()
-      });
-      showActionSuccess(`Request for ${amt} $VLC sent.`);
+      try {
+        await push(ref(db, 'transactions'), {
+          fromUid: myUid, 
+          fromWalletId: window.userProfile.walletId,
+          toUid: targetUserData.uid, 
+          toWalletId: targetUserData.walletId,
+          amount: amt, 
+          type: 'request', 
+          timestamp: Date.now()
+        });
+        showActionSuccess(`Request for ${amt} $VLC sent.`);
+      } catch (e) {
+        errEl.innerText = "Request failed: " + e.message;
+      }
     }
   };
 
@@ -1035,25 +1042,42 @@
   }
 
   window.resolvePending = async (txKey, isAccept) => {
+    if (processingPending.has(txKey)) return;
+    processingPending.add(txKey);
+
     const uid = window.currentUser.uid;
     const txRef = ref(db, `pendingTransfers/${uid}/${txKey}`);
-    const snap = await get(txRef);
-    if (!snap.exists()) return;
     
-    const txData = snap.val();
+    try {
+      const snap = await get(txRef);
+      if (!snap.exists()) {
+        processingPending.delete(txKey);
+        return;
+      }
+      
+      const txData = snap.val();
 
-    if (isAccept) {
-      await runTransaction(ref(db, `balances/${uid}`), (curr) => (curr || 0) + txData.amount);
-      await push(ref(db, 'transactions'), {
-        fromUid: txData.fromUid, fromWalletId: txData.fromWalletId,
-        toUid: uid, toWalletId: window.userProfile.walletId,
-        amount: txData.amount, type: 'transfer', timestamp: Date.now()
-      });
-    } else {
-      await runTransaction(ref(db, `balances/${txData.fromUid}`), (curr) => (curr || 0) + txData.amount);
+      await remove(txRef);
+
+      if (isAccept) {
+        await runTransaction(ref(db, `balances/${uid}`), (curr) => (curr || 0) + txData.amount);
+        await push(ref(db, 'transactions'), {
+          fromUid: txData.fromUid, 
+          fromWalletId: txData.fromWalletId,
+          toUid: uid, 
+          toWalletId: window.userProfile.walletId,
+          amount: txData.amount, 
+          type: 'transfer', 
+          timestamp: Date.now()
+        });
+      } else {
+        await runTransaction(ref(db, `balances/${txData.fromUid}`), (curr) => (curr || 0) + txData.amount);
+      }
+    } catch(e) {
+      console.error("Failed resolving pending transfer:", e);
+    } finally {
+      processingPending.delete(txKey);
     }
-    
-    await remove(txRef);
   };
 </script>
 </body>
