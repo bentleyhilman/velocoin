@@ -269,7 +269,7 @@
         <input type="email" id="ob-email" placeholder="you@example.com" data-enter="nextOnboardingStep">
       </div>
       
-      <!-- Step 2: Password (Triggers createUserWithEmailAndPassword) -->
+      <!-- Step 2: Password -->
       <div id="ob-step-2" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Create a Password</label>
         <input type="password" id="ob-password" placeholder="Minimum 6 characters" data-enter="nextOnboardingStep">
@@ -281,7 +281,7 @@
         <input type="text" id="ob-name" placeholder="What should we call you?" data-enter="nextOnboardingStep">
       </div>
 
-      <!-- Step 4: Wallet ID (Now Authenticated for Database Read) -->
+      <!-- Step 4: Wallet ID -->
       <div id="ob-step-4" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Create your Wallet ID</label>
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px;">Choose a 1 to 6 digit number for transfers.</p>
@@ -485,7 +485,6 @@
     "Ready to flow,", "Your vault awaits,", "Greetings,"
   ];
 
-  // Press Enter key handler mapping
   document.addEventListener('keyup', (e) => {
     if (e.key === 'Enter') {
       const activeElement = document.activeElement;
@@ -538,7 +537,6 @@
         attachDashboardListeners();
         switchView('view-dashboard');
       } else {
-        // User is authenticated in Auth, but hasn't finished database profile setup yet
         switchView('view-onboarding');
       }
     } else {
@@ -570,13 +568,13 @@
     const errEl = document.getElementById('ob-error');
     errEl.innerText = "";
     
-    // STEP 1: Email Validation
+    // STEP 1: Email
     if (obStep === 1) {
       const email = document.getElementById('ob-email').value.trim().toLowerCase();
       if (!email) return errEl.innerText = "Email required.";
     }
 
-    // STEP 2: Password & Early Account Creation (AUTHENTICATE IMMEDIATELY)
+    // STEP 2: Password & Account Creation
     if (obStep === 2) {
       const email = document.getElementById('ob-email').value.trim().toLowerCase();
       const pass = document.getElementById('ob-password').value;
@@ -603,7 +601,7 @@
       return errEl.innerText = "Name required.";
     }
     
-    // STEP 4: Wallet ID (Now safely authenticated for reading database)
+    // STEP 4: Wallet ID (Robust Check with Fallback)
     if (obStep === 4) {
       const rawVal = document.getElementById('ob-wallet-id').value;
       const wid = String(rawVal).trim();
@@ -616,7 +614,8 @@
         const snap = await get(ref(db, `walletIds/${wid}`));
         if (snap.exists()) return errEl.innerText = "Wallet ID already taken. Choose another.";
       } catch(e) {
-        return errEl.innerText = "Could not verify Wallet ID availability.";
+        // Fallback: If auth rule prohibits reading wallet IDs before final write, continue cleanly
+        console.warn("Skipping pre-check due to auth rule:", e);
       }
     }
 
@@ -689,6 +688,14 @@
     try {
       const uid = auth.currentUser.uid;
       
+      // Verify Wallet ID availability one last time before committing
+      const checkSnap = await get(ref(db, `walletIds/${wid}`));
+      if (checkSnap.exists() && checkSnap.val().uid !== uid) {
+        isCreatingAccount = false;
+        document.getElementById('ob-next-btn').innerText = "Complete Setup";
+        return errEl.innerText = "Wallet ID is taken. Go back and select another.";
+      }
+
       const profileData = {
         email, name, walletId: wid,
         preferences: { sendRequests: prefReq, sendMoney: prefSend, depositMode: prefDep, approvedIds: "" }
