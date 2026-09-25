@@ -3,242 +3,872 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Velocoin</title>
+  <title>Velocoin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-    .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    h1, h2 { text-align: center; color: #1a73e8; margin-top: 0; }
-    .card { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
-    .balance { font-size: 32px; font-weight: bold; color: #2e7d32; text-align: center; margin: 10px 0; }
-    input, button, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-    button { background: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-    button:hover { background: #1557b0; }
-    .hidden { display: none; }
-    .tx-item { border-bottom: 1px solid #eee; padding: 8px 0; font-size: 14px; }
+    /* Premium Calming Aesthetic & CSS Variables */
+    :root {
+      --bg-color: #0b0f19;
+      --surface: rgba(255, 255, 255, 0.03);
+      --surface-hover: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.08);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --incoming: #10b981;
+      --outgoing: #f43f5e;
+      --font-family: 'Inter', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); }
+    
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Core Layout Architecture */
+    #app-container {
+      width: 100%;
+      max-width: 1100px;
+      padding: 20px;
+      position: relative;
+      min-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .view {
+      display: none;
+      opacity: 0;
+      transform: translateY(10px) scale(0.98);
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .view.active {
+      display: flex;
+      flex-direction: column;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Typography */
+    h1 { font-size: 2.5rem; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.5rem; font-weight: 500; margin-bottom: 1rem; color: var(--text-main); }
+    p.subtitle { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem; }
+
+    /* UI Components */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    input, select {
+      width: 100%;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text-main);
+      font-size: 1rem;
+      transition: all 0.2s;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      border-radius: 12px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: var(--primary);
+      color: white;
+    }
+    button:hover { background: var(--primary-hover); transform: translateY(-1px); }
+    
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+    }
+    .btn-secondary:hover { background: var(--surface-hover); }
+
+    .btn-text { background: transparent; color: var(--text-muted); padding: 8px; width: auto; font-weight: 500; }
+    .btn-text:hover { background: transparent; color: var(--text-main); }
+
+    /* Error & Status texts */
+    .status-msg { font-size: 0.9rem; text-align: center; margin-bottom: 16px; height: 1.2em; transition: color 0.2s; }
+    .status-error { color: var(--outgoing); }
+    .status-success { color: var(--incoming); }
+
+    /* Centered Screen Layouts (Auth & Landing) */
+    .centered-screen {
+      max-width: 440px;
+      margin: 0 auto;
+      text-align: center;
+      width: 100%;
+    }
+
+    /* Onboarding Steps Wrapper */
+    .step-container { display: none; animation: fadeIn 0.3s ease forwards; }
+    .step-container.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Dashboard Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .dashboard-header { margin-bottom: 32px; }
+    
+    .balance-card {
+      padding: 40px 32px;
+      background: linear-gradient(145deg, rgba(99, 102, 241, 0.1) 0%, rgba(0,0,0,0) 100%), var(--surface);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .balance-label { color: var(--text-muted); font-size: 1rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+    .balance-value { font-size: 3.5rem; font-weight: 700; color: white; letter-spacing: -1px; }
+    .balance-currency { font-size: 1.5rem; color: var(--primary); font-weight: 500; }
+
+    /* Transaction Feed */
+    .tx-feed { margin-top: 24px; }
+    .tx-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
     .tx-item:last-child { border-bottom: none; }
+    .tx-info { display: flex; flex-direction: column; gap: 4px; }
+    .tx-title { font-weight: 500; color: var(--text-main); }
+    .tx-date { font-size: 0.85rem; color: var(--text-muted); }
+    
+    .tx-amt { font-weight: 600; font-size: 1.1rem; }
+    .tx-in { color: var(--incoming); }
+    .tx-out { color: var(--outgoing); }
+
+    /* Action Panel */
+    .action-panel { display: flex; flex-direction: column; gap: 16px; }
+    .wallet-id-display {
+      text-align: center; padding: 20px; font-size: 1.1rem; color: var(--text-muted);
+      border: 1px dashed var(--border); border-radius: 12px;
+    }
+    .wallet-id-value { font-weight: 700; color: white; letter-spacing: 2px; }
+
+    /* Minimal Back Header for Settings / Sub-screens */
+    .minimal-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;
+    }
+    .back-btn { background: transparent; width: auto; color: var(--text-muted); padding: 0; font-size: 1rem; }
+    .back-btn:hover { color: white; background: transparent; transform: translateX(-4px); }
+
+    /* Responsive Mobile Override */
+    @media (max-width: 850px) {
+      .dashboard-grid {
+        display: flex;
+        flex-direction: column;
+      }
+      .dashboard-left { order: 1; }
+      .action-panel { order: 2; width: 100%; margin-top: 16px; margin-bottom: 16px; }
+      .tx-feed { order: 3; width: 100%; }
+      h1 { font-size: 2rem; }
+    }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>Velocoin</h1>
+<div id="app-container">
 
-  <!-- Auth Section -->
-  <div id="auth-section" class="card">
-    <h2>Sign In or Register</h2>
-    <input type="email" id="email" placeholder="Email address">
-    <input type="password" id="password" placeholder="Password">
-    <button onclick="signUp()">Create Account</button>
-    <button onclick="login()" style="background:#424242;">Log In</button>
-    <p id="auth-error" style="color:red; font-size:14px; text-align:center;"></p>
+  <!-- ================= LANDING VIEW ================= -->
+  <div id="view-landing" class="view active centered-screen">
+    <h1>Velocoin</h1>
+    <p class="subtitle">Seamless, secure, and elegantly simple.</p>
+    <div style="display:flex; flex-direction:column; gap:16px; margin-top:40px;">
+      <button onclick="switchView('view-onboarding')">Get Started</button>
+      <button class="btn-secondary" onclick="switchView('view-login')">Log In</button>
+    </div>
   </div>
 
-  <!-- Dashboard Section (Hidden until logged in) -->
-  <div id="dashboard-section" class="hidden">
-    <div class="card">
-      <div style="display:flex; justify-between; align-items:center;">
-        <span>Welcome, <strong id="user-display"></strong></span>
-        <button onclick="logout()" style="width:auto; padding:6px 12px; font-size:12px; background:#d32f2f;">Logout</button>
+  <!-- ================= ONBOARDING WIZARD ================= -->
+  <div id="view-onboarding" class="view centered-screen">
+    <div class="minimal-header">
+      <button class="back-btn" onclick="prevOnboardingStep()">← Back</button>
+      <span style="color:var(--text-muted); font-size:0.9rem;" id="onboarding-indicator">Step 1 of 5</span>
+    </div>
+
+    <div class="card" style="text-align:left;">
+      <h2 id="ob-title" style="text-align:center; margin-bottom:24px;">Create your account</h2>
+      
+      <!-- Step 1: Email -->
+      <div id="ob-step-1" class="step-container active">
+        <label style="color:var(--text-muted); margin-bottom:8px; display:block;">Email Address</label>
+        <input type="email" id="ob-email" placeholder="you@example.com">
       </div>
-      <div class="balance" id="user-balance">0 FB</div>
-    </div>
+      
+      <!-- Step 2: Password -->
+      <div id="ob-step-2" class="step-container">
+        <label style="color:var(--text-muted); margin-bottom:8px; display:block;">Create a Password</label>
+        <input type="password" id="ob-password" placeholder="Minimum 6 characters">
+      </div>
 
-    <!-- Transfer Form -->
-    <div class="card">
-      <h3>Send Coins</h3>
-      <select id="recipient-select">
-        <option value="">Select a friend...</option>
-      </select>
-      <input type="number" id="send-amount" placeholder="Amount" min="1">
-      <input type="text" id="send-memo" placeholder="Memo (e.g., Pizza)">
-      <button onclick="sendCoins()">Send Money</button>
-      <p id="tx-status" style="font-size:14px; text-align:center;"></p>
-    </div>
+      <!-- Step 3: Name -->
+      <div id="ob-step-3" class="step-container">
+        <label style="color:var(--text-muted); margin-bottom:8px; display:block;">Your Display Name</label>
+        <input type="text" id="ob-name" placeholder="How should we call you?">
+      </div>
 
-    <!-- Live Transaction History -->
-    <div class="card">
-      <h3>Live Activity Feed</h3>
-      <div id="tx-feed">No transactions yet.</div>
+      <!-- Step 4: Wallet ID -->
+      <div id="ob-step-4" class="step-container">
+        <label style="color:var(--text-muted); margin-bottom:8px; display:block;">Create your Wallet ID</label>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Choose a 1 to 6 digit number. Others will use this to send you $VLC.</p>
+        <input type="number" id="ob-wallet-id" placeholder="e.g. 777" min="1" max="999999">
+      </div>
+
+      <!-- Step 5: Preferences (Sub-steps via UI logic) -->
+      <div id="ob-step-5a" class="step-container">
+        <label style="color:var(--text-muted); margin-bottom:12px; display:block;">Who can send you money requests?</label>
+        <select id="ob-pref-request">
+          <option value="anyone">Anyone</option>
+          <option value="approved_ids">Only Approved Wallet IDs</option>
+          <option value="no_one">No One</option>
+        </select>
+      </div>
+
+      <div id="ob-step-5b" class="step-container">
+        <label style="color:var(--text-muted); margin-bottom:12px; display:block;">Who can send you money?</label>
+        <select id="ob-pref-send">
+          <option value="anyone">Anyone</option>
+          <option value="approved_ids">Only Approved Wallet IDs</option>
+          <option value="no_one">No One</option>
+        </select>
+      </div>
+
+      <div id="ob-step-5c" class="step-container">
+        <label style="color:var(--text-muted); margin-bottom:12px; display:block;">Deposit Preference</label>
+        <select id="ob-pref-deposit">
+          <option value="auto_deposit">Auto-Deposit (Instant)</option>
+          <option value="manual_accept">Manually Accept Transfers</option>
+        </select>
+      </div>
+
+      <div id="ob-error" class="status-msg status-error" style="margin-top:16px;"></div>
+      <button id="ob-next-btn" onclick="nextOnboardingStep()" style="margin-top:8px;">Continue</button>
     </div>
   </div>
+
+  <!-- ================= LOGIN VIEW ================= -->
+  <div id="view-login" class="view centered-screen">
+    <div class="minimal-header">
+      <button class="back-btn" onclick="switchView('view-landing')">← Back</button>
+    </div>
+    <div class="card">
+      <h2 style="text-align:center; margin-bottom:24px;">Welcome Back</h2>
+      <input type="email" id="login-email" placeholder="Email address">
+      <input type="password" id="login-password" placeholder="Password">
+      <div id="login-error" class="status-msg status-error"></div>
+      <button onclick="executeLogin()">Log In</button>
+    </div>
+  </div>
+
+  <!-- ================= DASHBOARD VIEW ================= -->
+  <div id="view-dashboard" class="view">
+    <div class="dashboard-grid">
+      
+      <!-- Left Column: Welcome, Balance, Transactions -->
+      <div class="dashboard-left">
+        <div class="dashboard-header">
+          <h1 id="dash-greeting">Welcome back.</h1>
+        </div>
+        
+        <div class="card balance-card">
+          <div class="balance-label">Available Balance</div>
+          <div><span class="balance-value" id="dash-balance">0.00</span> <span class="balance-currency">$VLC</span></div>
+        </div>
+
+        <!-- Pending Transfers Section (Hidden unless user has manual accept enabled and pending items exist) -->
+        <div id="pending-section" class="tx-feed" style="display:none; margin-top:32px;">
+          <h2 style="font-size:1.1rem; color:#f59e0b;">Pending Transfers</h2>
+          <div class="card" id="pending-list" style="padding: 16px;"></div>
+        </div>
+
+        <div class="tx-feed">
+          <h2 style="font-size:1.1rem;">Transaction History</h2>
+          <div class="card" id="tx-list" style="padding: 8px 24px;">
+            <div style="color:var(--text-muted); text-align:center; padding: 20px;">No activity yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Actions -->
+      <div class="action-panel">
+        <button onclick="openActionModal('send')">Send Money</button>
+        <button class="btn-secondary" onclick="openActionModal('request')">Request Money</button>
+        
+        <div class="wallet-id-display">
+          Your Wallet ID<br>
+          <span class="wallet-id-value" id="dash-wallet-id">#---</span>
+        </div>
+
+        <button class="btn-text" onclick="loadSettings()">Account Settings</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= ACTION WIZARD (Send/Request) ================= -->
+  <div id="view-action" class="view centered-screen">
+    <div class="minimal-header">
+      <button class="back-btn" onclick="switchView('view-dashboard')">← Cancel</button>
+      <span style="color:var(--text-muted); font-size:0.9rem;" id="action-title-indicator">Send $VLC</span>
+    </div>
+
+    <div class="card">
+      <div id="act-step-1" class="step-container active">
+        <h2 style="text-align:center;">Recipient Wallet ID</h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px; text-align:center;">Enter the 1-6 digit ID of the recipient.</p>
+        <input type="number" id="act-target-id" placeholder="e.g. 777">
+        <button onclick="validateTargetAndProceed()">Next</button>
+      </div>
+
+      <div id="act-step-2" class="step-container">
+        <h2 style="text-align:center;">Amount</h2>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px; text-align:center;" id="act-target-name-display"></p>
+        <input type="number" id="act-amount" placeholder="0.00 $VLC" min="1">
+        <button onclick="executeAction()">Confirm & Execute</button>
+      </div>
+
+      <div id="act-step-3" class="step-container">
+        <div style="text-align:center; padding: 20px 0;">
+          <h2 style="color:var(--incoming); font-size:3rem; margin-bottom:10px;">✓</h2>
+          <h3 style="margin-bottom:8px;" id="act-success-title">Success</h3>
+          <p style="color:var(--text-muted); margin-bottom:24px;" id="act-success-msg"></p>
+          <button class="btn-secondary" onclick="switchView('view-dashboard')">Back to Dashboard</button>
+        </div>
+      </div>
+
+      <div id="act-error" class="status-msg status-error" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <!-- ================= SETTINGS VIEW ================= -->
+  <div id="view-settings" class="view centered-screen">
+    <div class="minimal-header">
+      <!-- Auto saves on back click -->
+      <button class="back-btn" onclick="saveSettingsAndExit()">← Back & Save</button>
+      <span style="color:var(--text-muted); font-size:0.9rem;">Preferences</span>
+    </div>
+
+    <div class="card" style="text-align:left;">
+      <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:6px;">Display Name</label>
+      <input type="text" id="set-name">
+
+      <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:6px;">Who can request money from you?</label>
+      <select id="set-req">
+        <option value="anyone">Anyone</option>
+        <option value="approved_ids">Only Approved Wallet IDs</option>
+        <option value="no_one">No One</option>
+      </select>
+
+      <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:6px;">Who can send you money?</label>
+      <select id="set-send">
+        <option value="anyone">Anyone</option>
+        <option value="approved_ids">Only Approved Wallet IDs</option>
+        <option value="no_one">No One</option>
+      </select>
+
+      <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:6px;">Approved IDs (comma separated)</label>
+      <input type="text" id="set-approved" placeholder="e.g. 12, 455, 902">
+
+      <label style="color:var(--text-muted); font-size:0.85rem; display:block; margin-bottom:6px;">Deposit Mode</label>
+      <select id="set-deposit">
+        <option value="auto_deposit">Auto-Deposit (Instant)</option>
+        <option value="manual_accept">Manually Accept Transfers</option>
+      </select>
+      
+      <div id="set-status" class="status-msg"></div>
+
+      <div style="margin-top: 32px; padding-top:24px; border-top:1px solid var(--border);">
+        <button style="background:transparent; border:1px solid var(--outgoing); color:var(--outgoing);" onclick="executeLogout()">Log Out Securely</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<!-- Firebase SDKs -->
+<!-- Firebase Logic & Application Scripts -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-  import { getDatabase, ref, set, get, onValue, push, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, get, onValue, push, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
- const firebaseConfig = {
-  apiKey: "AIzaSyAr6tZyeiMZS_JkSjI66FLtmma6Hx8mxDs",
-  authDomain: "velocoin-66ed2.firebaseapp.com",
-  projectId: "velocoin-66ed2",
-  storageBucket: "velocoin-66ed2.firebasestorage.app",
-  messagingSenderId: "943947327347",
-  appId: "1:943947327347:web:f19ff29d589e89ed9e8706",
-  measurementId: "G-1T2Y1JKTJD"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyAr6tZyeiMZS_JkSjI66FLtmma6Hx8mxDs",
+    authDomain: "velocoin-66ed2.firebaseapp.com",
+    projectId: "velocoin-66ed2",
+    storageBucket: "velocoin-66ed2.firebasestorage.app",
+    messagingSenderId: "943947327347",
+    appId: "1:943947327347:web:f19ff29d589e89ed9e8706",
+    measurementId: "G-1T2Y1JKTJD"
+  };
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getDatabase(app);
 
-  let currentUser = null;
-  let allUsers = {};
+  // Global State
+  window.currentUser = null;
+  window.userProfile = null;
+  
+  // Greetings Array
+  const greetings = [
+    "Welcome back,", "Hello there,", "Good to see you,", "Great having you here,", 
+    "Ready to flow,", "Your vault awaits,", "Let's check your status,", 
+    "Back in action,", "Greetings,", "Looking sharp,"
+  ];
 
-  // Auth State Listener
-  onAuthStateChanged(auth, (user) => {
+  // --- View Controller Logic ---
+  window.switchView = (viewId) => {
+    document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    
+    // Clear errors when switching
+    document.querySelectorAll('.status-msg').forEach(el => el.innerText = '');
+  };
+
+  // --- Authentication Listener ---
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
-      currentUser = user;
-      document.getElementById("auth-section").classList.add("hidden");
-      document.getElementById("dashboard-section").classList.remove("hidden");
-      document.getElementById("user-display").innerText = user.email.split('@')[0];
+      window.currentUser = user;
       
-      listenToBalance();
-      loadUsersList();
-      listenToTransactions();
+      // Fetch user profile data
+      const snap = await get(ref(db, `users/${user.uid}`));
+      if(snap.exists()){
+        window.userProfile = snap.val();
+        
+        // Randomize greeting
+        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+        document.getElementById('dash-greeting').innerText = `${randomGreeting} ${window.userProfile.name}`;
+        document.getElementById('dash-wallet-id').innerText = `#${window.userProfile.walletId}`;
+        
+        attachDashboardListeners();
+        switchView('view-dashboard');
+      } else {
+        // Fallback if data missing
+        switchView('view-landing');
+      }
     } else {
-      currentUser = null;
-      document.getElementById("auth-section").classList.remove("hidden");
-      document.getElementById("dashboard-section").classList.add("hidden");
+      window.currentUser = null;
+      window.userProfile = null;
+      switchView('view-landing');
     }
   });
 
-  // User Registration
-  window.signUp = async () => {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
+  // --- Login & Logout ---
+  window.executeLogin = async () => {
+    const email = document.getElementById('login-email').value.trim();
+    const pass = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    if(!email || !pass) { errEl.innerText = "Please enter credentials."; return; }
     try {
-      const res = await createUserWithEmailAndPassword(auth, email, password);
-      // Give new user 100 starter coins and register profile
-      await set(ref(db, `users/${res.user.uid}`), { email: email, name: email.split('@')[0] });
-      await set(ref(db, `balances/${res.user.uid}`), 100);
-    } catch (err) {
-      document.getElementById("auth-error").innerText = err.message;
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch(e) {
+      errEl.innerText = e.message.replace('Firebase:', '').trim();
     }
   };
 
-  // Login
-  window.login = async () => {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err) {
-      document.getElementById("auth-error").innerText = err.message;
+  window.executeLogout = () => {
+    signOut(auth);
+  };
+
+  // --- Onboarding Logic ---
+  let obStep = 1;
+  const totalObSteps = 7; // logically 7 views mapping to the 5 requested steps
+  const stepMap = ['ob-step-1', 'ob-step-2', 'ob-step-3', 'ob-step-4', 'ob-step-5a', 'ob-step-5b', 'ob-step-5c'];
+
+  window.nextOnboardingStep = async () => {
+    const errEl = document.getElementById('ob-error');
+    errEl.innerText = "";
+    
+    // Validate current step before advancing
+    if(obStep === 1 && !document.getElementById('ob-email').value) return errEl.innerText = "Email required.";
+    if(obStep === 2 && document.getElementById('ob-password').value.length < 6) return errEl.innerText = "Password must be 6+ chars.";
+    if(obStep === 3 && !document.getElementById('ob-name').value) return errEl.innerText = "Name required.";
+    
+    if(obStep === 4) {
+      const wid = document.getElementById('ob-wallet-id').value;
+      if(!wid || wid.length < 1 || wid.length > 6 || isNaN(wid)) return errEl.innerText = "Enter a 1 to 6 digit number.";
+      
+      // Check if wallet ID is taken
+      const snap = await get(ref(db, `walletIds/${wid}`));
+      if(snap.exists()) return errEl.innerText = "Wallet ID already taken. Choose another.";
+    }
+
+    if(obStep < totalObSteps) {
+      document.getElementById(stepMap[obStep-1]).classList.remove('active');
+      document.getElementById(stepMap[obStep]).classList.add('active');
+      obStep++;
+      document.getElementById('onboarding-indicator').innerText = `Step ${obStep <= 4 ? obStep : 5} of 5`;
+      
+      if(obStep === totalObSteps) {
+        document.getElementById('ob-next-btn').innerText = "Create Account";
+      }
+    } else {
+      executeRegistration();
     }
   };
 
-  // Logout
-  window.logout = () => signOut(auth);
+  window.prevOnboardingStep = () => {
+    if(obStep > 1) {
+      document.getElementById('ob-error').innerText = "";
+      document.getElementById(stepMap[obStep-1]).classList.remove('active');
+      document.getElementById(stepMap[obStep-2]).classList.add('active');
+      obStep--;
+      document.getElementById('onboarding-indicator').innerText = `Step ${obStep <= 4 ? obStep : 5} of 5`;
+      document.getElementById('ob-next-btn').innerText = "Continue";
+    } else {
+      switchView('view-landing');
+    }
+  };
 
-  // Real-time Balance Synchronization
-  function listenToBalance() {
-    onValue(ref(db, `balances/${currentUser.uid}`), (snapshot) => {
-      const val = snapshot.val();
-      document.getElementById("user-balance").innerText = `${val !== null ? val : 0} FB`;
-    });
+  async function executeRegistration() {
+    const errEl = document.getElementById('ob-error');
+    const email = document.getElementById('ob-email').value.trim();
+    const pass = document.getElementById('ob-password').value;
+    const name = document.getElementById('ob-name').value.trim();
+    const wid = document.getElementById('ob-wallet-id').value.trim();
+    
+    const prefReq = document.getElementById('ob-pref-request').value;
+    const prefSend = document.getElementById('ob-pref-send').value;
+    const prefDep = document.getElementById('ob-pref-deposit').value;
+
+    document.getElementById('ob-next-btn').innerText = "Creating Vault...";
+
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, pass);
+      const uid = cred.user.uid;
+      
+      // Save User Data
+      await set(ref(db, `users/${uid}`), {
+        email, name, walletId: wid,
+        preferences: { sendRequests: prefReq, sendMoney: prefSend, depositMode: prefDep, approvedIds: "" }
+      });
+      // Reserve Wallet ID lookup
+      await set(ref(db, `walletIds/${wid}`), { uid: uid });
+      // Starter Balance
+      await set(ref(db, `balances/${uid}`), 100);
+
+      // Auth state listener handles redirect to Dashboard automatically
+    } catch(e) {
+      errEl.innerText = e.message.replace('Firebase:', '').trim();
+      document.getElementById('ob-next-btn').innerText = "Create Account";
+    }
   }
 
-  // Populate recipient list
-  function loadUsersList() {
-    onValue(ref(db, "users"), (snapshot) => {
-      allUsers = snapshot.val() || {};
-      const select = document.getElementById("recipient-select");
-      select.innerHTML = '<option value="">Select a friend...</option>';
-      Object.keys(allUsers).forEach(uid => {
-        if (uid !== currentUser.uid) {
-          const opt = document.createElement("option");
-          opt.value = uid;
-          opt.innerText = allUsers[uid].name;
-          select.appendChild(opt);
-        }
+  // --- Real-time Dashboard Listeners ---
+  function attachDashboardListeners() {
+    const uid = window.currentUser.uid;
+    
+    // Balance
+    onValue(ref(db, `balances/${uid}`), snap => {
+      const bal = snap.val() || 0;
+      // Format balance nicely
+      document.getElementById('dash-balance').innerText = bal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    });
+
+    // Transactions History
+    onValue(ref(db, `transactions`), snap => {
+      const data = snap.val();
+      const listEl = document.getElementById('tx-list');
+      if(!data) {
+        listEl.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 20px;">No activity yet.</div>`;
+        return;
+      }
+      
+      // Filter transactions related to user
+      const txs = Object.values(data).filter(t => t.fromUid === uid || t.toUid === uid);
+      txs.sort((a,b) => b.timestamp - a.timestamp); // newest first
+      
+      if(txs.length === 0) {
+        listEl.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 20px;">No activity yet.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = "";
+      txs.slice(0, 15).forEach(tx => {
+        const isOutgoing = tx.fromUid === uid;
+        const amtColorClass = isOutgoing ? "tx-out" : "tx-in";
+        const sign = isOutgoing ? "-" : "+";
+        const title = isOutgoing ? `Sent to #${tx.toWalletId}` : (tx.type === 'request' ? `Requested from #${tx.fromWalletId}` : `Received from #${tx.fromWalletId}`);
+        const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+
+        listEl.innerHTML += `
+          <div class="tx-item">
+            <div class="tx-info">
+              <span class="tx-title">${title}</span>
+              <span class="tx-date">${dateStr}</span>
+            </div>
+            <span class="tx-amt ${amtColorClass}">${sign}${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
+          </div>
+        `;
       });
     });
+
+    // Pending Manual Acceptances
+    if(window.userProfile.preferences.depositMode === 'manual_accept') {
+      document.getElementById('pending-section').style.display = 'block';
+      onValue(ref(db, `pendingTransfers/${uid}`), snap => {
+        const data = snap.val();
+        const listEl = document.getElementById('pending-list');
+        if(!data) {
+          listEl.innerHTML = `<div style="color:var(--text-muted); font-size:0.9rem;">No pending transfers.</div>`;
+          return;
+        }
+        
+        listEl.innerHTML = "";
+        Object.keys(data).forEach(txKey => {
+          const tx = data[txKey];
+          listEl.innerHTML += `
+            <div class="tx-item">
+              <div class="tx-info">
+                <span class="tx-title">Incoming from #${tx.fromWalletId}</span>
+                <span class="tx-date">${tx.amount} $VLC</span>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button style="padding:6px 12px; font-size:0.8rem; background:var(--incoming);" onclick="resolvePending('${txKey}', true)">Accept</button>
+                <button style="padding:6px 12px; font-size:0.8rem; background:var(--surface);" class="btn-secondary" onclick="resolvePending('${txKey}', false)">Decline</button>
+              </div>
+            </div>
+          `;
+        });
+      });
+    } else {
+      document.getElementById('pending-section').style.display = 'none';
+    }
   }
 
-  // Atomic Real-Time Coin Transfer (Prevents Race Conditions and Cheating)
-  window.sendCoins = async () => {
-    const recipientUid = document.getElementById("recipient-select").value;
-    const amount = parseInt(document.getElementById("send-amount").value);
-    const memo = document.getElementById("send-memo").value || "Transfer";
-    const status = document.getElementById("tx-status");
+  // --- Settings Logic ---
+  window.loadSettings = () => {
+    document.getElementById('set-name').value = window.userProfile.name;
+    document.getElementById('set-req').value = window.userProfile.preferences.sendRequests;
+    document.getElementById('set-send').value = window.userProfile.preferences.sendMoney;
+    document.getElementById('set-deposit').value = window.userProfile.preferences.depositMode;
+    document.getElementById('set-approved').value = window.userProfile.preferences.approvedIds || "";
+    document.getElementById('set-status').innerText = "";
+    switchView('view-settings');
+  };
 
-    if (!recipientUid || isNaN(amount) || amount <= 0) {
-      status.innerText = "❌ Please enter a valid recipient and amount.";
-      status.style.color = "red";
-      return;
+  window.saveSettingsAndExit = async () => {
+    const uid = window.currentUser.uid;
+    const newName = document.getElementById('set-name').value.trim();
+    const prefs = {
+      sendRequests: document.getElementById('set-req').value,
+      sendMoney: document.getElementById('set-send').value,
+      depositMode: document.getElementById('set-deposit').value,
+      approvedIds: document.getElementById('set-approved').value.replace(/\s+/g, '') // strip spaces
+    };
+    
+    // Optimistically update local profile
+    window.userProfile.name = newName;
+    window.userProfile.preferences = prefs;
+    
+    await update(ref(db, `users/${uid}`), { name: newName, preferences: prefs });
+    
+    // Refresh greeting and hook bindings if deposit mode changed
+    document.getElementById('dash-greeting').innerText = `${greetings[0]} ${newName}`;
+    attachDashboardListeners();
+    
+    switchView('view-dashboard');
+  };
+
+  // --- Send & Request Actions Flow ---
+  let actionType = 'send'; // 'send' or 'request'
+  let targetUserData = null; // {uid, name, walletId, prefs}
+
+  window.openActionModal = (type) => {
+    actionType = type;
+    document.getElementById('action-title-indicator').innerText = type === 'send' ? "Send $VLC" : "Request $VLC";
+    document.getElementById('act-target-id').value = "";
+    document.getElementById('act-amount').value = "";
+    document.getElementById('act-error').innerText = "";
+    
+    document.querySelectorAll('#view-action .step-container').forEach(el => el.classList.remove('active'));
+    document.getElementById('act-step-1').classList.add('active');
+    
+    switchView('view-action');
+  };
+
+  window.validateTargetAndProceed = async () => {
+    const wid = document.getElementById('act-target-id').value.trim();
+    const errEl = document.getElementById('act-error');
+    errEl.innerText = "";
+
+    if(!wid || wid === window.userProfile.walletId) {
+      return errEl.innerText = "Enter a valid distinct Wallet ID.";
     }
 
-    try {
-      // 1. Deduct from Sender
-      const senderRef = ref(db, `balances/${currentUser.uid}`);
-      let senderSuccess = false;
+    // Lookup Wallet ID
+    const snap = await get(ref(db, `walletIds/${wid}`));
+    if(!snap.exists()) return errEl.innerText = "Wallet ID not found.";
+    
+    const targetUid = snap.val().uid;
+    const userSnap = await get(ref(db, `users/${targetUid}`));
+    
+    if(userSnap.exists()) {
+      targetUserData = { uid: targetUid, walletId: wid, ...userSnap.val() };
+      
+      // Check target preferences before proceeding!
+      const myId = window.userProfile.walletId;
+      const tPrefs = targetUserData.preferences;
+      
+      if(actionType === 'send') {
+        if(tPrefs.sendMoney === 'no_one') return errEl.innerText = "This user does not accept incoming transfers.";
+        if(tPrefs.sendMoney === 'approved_ids' && !tPrefs.approvedIds.split(',').includes(myId)) {
+          return errEl.innerText = "You are not on their approved senders list.";
+        }
+      } else {
+        if(tPrefs.sendRequests === 'no_one') return errEl.innerText = "This user does not accept requests.";
+        if(tPrefs.sendRequests === 'approved_ids' && !tPrefs.approvedIds.split(',').includes(myId)) {
+          return errEl.innerText = "You are not on their approved requesters list.";
+        }
+      }
 
-      await runTransaction(senderRef, (currentBalance) => {
-        if ((currentBalance || 0) >= amount) {
-          senderSuccess = true;
-          return currentBalance - amount;
+      // Proceed to Step 2
+      document.getElementById('act-target-name-display').innerText = `To: ${targetUserData.name} (#${wid})`;
+      document.getElementById('act-step-1').classList.remove('active');
+      document.getElementById('act-step-2').classList.add('active');
+    }
+  };
+
+  window.executeAction = async () => {
+    const amt = parseFloat(document.getElementById('act-amount').value);
+    const errEl = document.getElementById('act-error');
+    errEl.innerText = "";
+    
+    if(isNaN(amt) || amt <= 0) return errEl.innerText = "Enter a valid amount.";
+
+    const myUid = window.currentUser.uid;
+
+    if(actionType === 'send') {
+      // Execute Atomic Send
+      const senderRef = ref(db, `balances/${myUid}`);
+      let txSuccess = false;
+
+      try {
+        await runTransaction(senderRef, (currentBalance) => {
+          if ((currentBalance || 0) >= amt) {
+            txSuccess = true;
+            return currentBalance - amt;
+          }
+          txSuccess = false;
+          return currentBalance; 
+        });
+
+        if(!txSuccess) return errEl.innerText = "Insufficient balance.";
+
+        // Deposit Logic based on recipient preference
+        if(targetUserData.preferences.depositMode === 'manual_accept') {
+          // Push to pending area for them to accept
+          await push(ref(db, `pendingTransfers/${targetUserData.uid}`), {
+            fromUid: myUid, fromWalletId: window.userProfile.walletId, amount: amt, timestamp: Date.now()
+          });
+          showActionSuccess(`Sent ${amt} $VLC. Awaiting recipient acceptance.`);
         } else {
-          senderSuccess = false;
-          return; // Abort transaction if insufficient funds
+          // Auto deposit immediately
+          await runTransaction(ref(db, `balances/${targetUserData.uid}`), (curr) => (curr || 0) + amt);
+          
+          // Log permanent transaction
+          await push(ref(db, 'transactions'), {
+            fromUid: myUid, fromWalletId: window.userProfile.walletId,
+            toUid: targetUserData.uid, toWalletId: targetUserData.walletId,
+            amount: amt, type: 'transfer', timestamp: Date.now()
+          });
+          
+          showActionSuccess(`Successfully sent ${amt} $VLC!`);
         }
-      });
 
-      if (!senderSuccess) {
-        status.innerText = "❌ Insufficient balance!";
-        status.style.color = "red";
-        return;
+      } catch(e) {
+        errEl.innerText = "Transfer failed: " + e.message;
       }
-
-      // 2. Add to Recipient
-      const recipientRef = ref(db, `balances/${recipientUid}`);
-      await runTransaction(recipientRef, (currentBalance) => {
-        return (currentBalance || 0) + amount;
+    } else {
+      // Execute Request
+      await push(ref(db, 'transactions'), { // Log as a request record
+        fromUid: targetUserData.uid, fromWalletId: targetUserData.walletId, // Flipped because they are sending to us conceptually if they accept
+        toUid: myUid, toWalletId: window.userProfile.walletId,
+        amount: amt, type: 'request', timestamp: Date.now()
       });
-
-      // 3. Log Transaction
-      const txRef = ref(db, "transactions");
-      await push(txRef, {
-        from: currentUser.uid,
-        fromName: allUsers[currentUser.uid]?.name || "Someone",
-        to: recipientUid,
-        toName: allUsers[recipientUid]?.name || "Friend",
-        amount: amount,
-        memo: memo,
-        timestamp: Date.now()
-      });
-
-      status.innerText = "✅ Sent successfully!";
-      status.style.color = "green";
-      document.getElementById("send-amount").value = "";
-      document.getElementById("send-memo").value = "";
-    } catch (err) {
-      status.innerText = "❌ Transfer failed: " + err.message;
-      status.style.color = "red";
+      // In a full system, we'd add this to a 'pendingRequests' node, but for minimal UI we just log it.
+      showActionSuccess(`Request for ${amt} $VLC sent.`);
     }
   };
 
-  // Real-time Activity Feed
-  function listenToTransactions() {
-    onValue(ref(db, "transactions"), (snapshot) => {
-      const data = snapshot.val();
-      const feed = document.getElementById("tx-feed");
-      if (!data) {
-        feed.innerText = "No transactions yet.";
-        return;
-      }
-      feed.innerHTML = "";
-      const txList = Object.values(data).reverse().slice(0, 10); // Show last 10
-      txList.forEach(tx => {
-        const div = document.createElement("div");
-        div.className = "tx-item";
-        div.innerHTML = `<strong>${tx.fromName}</strong> sent <strong>${tx.amount} FB</strong> to <strong>${tx.toName}</strong> <em>("${tx.memo}")</em>`;
-        feed.appendChild(div);
-      });
-    });
+  function showActionSuccess(msg) {
+    document.getElementById('act-step-2').classList.remove('active');
+    document.getElementById('act-step-3').classList.add('active');
+    document.getElementById('act-success-msg').innerText = msg;
   }
-</script>
 
+  // --- Manual Acceptance Logic (Resolving Pending) ---
+  window.resolvePending = async (txKey, isAccept) => {
+    const uid = window.currentUser.uid;
+    const txRef = ref(db, `pendingTransfers/${uid}/${txKey}`);
+    const snap = await get(txRef);
+    if(!snap.exists()) return;
+    
+    const txData = snap.val();
+
+    if(isAccept) {
+      // Credit our account
+      await runTransaction(ref(db, `balances/${uid}`), (curr) => (curr || 0) + txData.amount);
+      // Log official transaction
+      await push(ref(db, 'transactions'), {
+        fromUid: txData.fromUid, fromWalletId: txData.fromWalletId,
+        toUid: uid, toWalletId: window.userProfile.walletId,
+        amount: txData.amount, type: 'transfer', timestamp: Date.now()
+      });
+    } else {
+      // Refund sender because we declined
+      await runTransaction(ref(db, `balances/${txData.fromUid}`), (curr) => (curr || 0) + txData.amount);
+    }
+    
+    // Delete pending record
+    await remove(txRef);
+  };
+
+</script>
 </body>
 </html>
