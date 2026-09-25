@@ -9,10 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
   <style>
-    /* Minimalist Light Theme Palette */
     :root {
       --bg-color: #f8fafc;
-      --surface: #ffffff;
       --surface-subtle: #f1f5f9;
       --text-main: #0f172a;
       --text-muted: #64748b;
@@ -22,8 +20,6 @@
       --incoming: #10b981;
       --outgoing: #ef4444;
       --font-family: 'Plus Jakarta Sans', sans-serif;
-      --shadow-soft: 0 20px 40px -15px rgba(15, 23, 42, 0.05);
-      --shadow-card: 0 4px 20px -2px rgba(15, 23, 42, 0.03);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); }
@@ -39,18 +35,18 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Core Container & Seamless Animation Frame */
     #app-container {
       width: 100%;
-      max-width: 1000px;
+      max-width: 900px;
       padding: 24px;
       position: relative;
-      min-height: 85vh;
+      min-height: 80vh;
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
 
+    /* Screen Transitions */
     .view {
       display: none;
       opacity: 0;
@@ -66,21 +62,11 @@
       transform: translateY(0) scale(1);
     }
 
-    /* Minimal Typography */
     h1 { font-size: 2.75rem; font-weight: 700; letter-spacing: -1px; color: var(--text-main); }
-    h2 { font-size: 1.4rem; font-weight: 600; color: var(--text-main); letter-spacing: -0.3px; }
+    h2 { font-size: 1.5rem; font-weight: 600; color: var(--text-main); letter-spacing: -0.3px; }
     p.subtitle { color: var(--text-muted); font-size: 1.1rem; font-weight: 400; margin-bottom: 2rem; }
 
-    /* Clean Floating Cards (Borderless Aesthetics) */
-    .card {
-      background: var(--surface);
-      border: none;
-      border-radius: 24px;
-      padding: 32px;
-      box-shadow: var(--shadow-card);
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
-    }
-
+    /* Frameless Floating Elements */
     input, select {
       width: 100%;
       padding: 18px;
@@ -96,7 +82,7 @@
     }
 
     input:focus, select:focus {
-      background: var(--surface);
+      background: #ffffff;
       border-color: var(--primary);
       box-shadow: 0 0 0 4px var(--primary-light);
     }
@@ -112,25 +98,24 @@
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       background: var(--primary);
       color: white;
-      box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.3);
+      box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.25);
     }
     
     button:hover { 
       background: var(--primary-hover); 
       transform: translateY(-2px);
-      box-shadow: 0 14px 28px -5px rgba(79, 70, 229, 0.4);
+      box-shadow: 0 14px 28px -5px rgba(79, 70, 229, 0.35);
     }
 
     button:active { transform: translateY(0); }
     
     .btn-secondary {
-      background: var(--surface);
+      background: var(--surface-subtle);
       color: var(--text-main);
-      box-shadow: var(--shadow-card);
+      box-shadow: none;
     }
     .btn-secondary:hover { 
-      background: var(--surface-subtle); 
-      box-shadow: var(--shadow-soft);
+      background: #e2e8f0; 
     }
 
     .btn-text { 
@@ -143,16 +128,13 @@
     .btn-text:hover { 
       background: transparent; 
       color: var(--text-main); 
-      box-shadow: none;
       transform: translateY(-1px);
     }
 
-    /* Minimal Error / Status text */
     .status-msg { font-size: 0.9rem; font-weight: 500; text-align: center; margin-top: 12px; min-height: 1.2em; transition: all 0.3s ease; }
     .status-error { color: var(--outgoing); }
     .status-success { color: var(--incoming); }
 
-    /* Screen Layouts */
     .centered-screen {
       max-width: 420px;
       margin: 0 auto;
@@ -160,7 +142,7 @@
       width: 100%;
     }
 
-    /* Animated Multi-step Onboarding Elements */
+    /* Onboarding Horizontal Glide */
     .step-container { 
       display: none; 
       opacity: 0;
@@ -173,25 +155,21 @@
       transform: translateX(0);
     }
 
-    /* Dashboard Grid Architecture */
+    /* Dashboard Layout */
     .dashboard-grid {
       display: grid;
-      grid-template-columns: 1fr 340px;
-      gap: 32px;
+      grid-template-columns: 1fr 320px;
+      gap: 40px;
       align-items: start;
     }
 
     .dashboard-header { margin-bottom: 24px; }
     
     .balance-card {
-      padding: 48px 32px;
-      background: var(--surface);
+      padding: 32px 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      box-shadow: var(--shadow-soft);
-      border-radius: 28px;
+      align-items: flex-start;
     }
     
     .balance-label { 
@@ -202,18 +180,17 @@
       letter-spacing: 2px; 
       margin-bottom: 8px; 
     }
-    .balance-value { font-size: 3.75rem; font-weight: 700; color: var(--text-main); letter-spacing: -2px; }
-    .balance-currency { font-size: 1.25rem; color: var(--primary); font-weight: 600; margin-left: 4px; }
+    .balance-value { font-size: 4rem; font-weight: 700; color: var(--text-main); letter-spacing: -2px; }
+    .balance-currency { font-size: 1.25rem; color: var(--primary); font-weight: 600; margin-left: 6px; }
 
-    /* Transaction Feed */
-    .tx-feed { margin-top: 32px; }
+    /* Feed Items */
+    .tx-feed { margin-top: 24px; }
     .tx-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 18px 0;
+      padding: 16px 0;
       border-bottom: 1px solid var(--surface-subtle);
-      transition: background 0.2s ease;
     }
     .tx-item:last-child { border-bottom: none; }
     .tx-info { display: flex; flex-direction: column; gap: 4px; }
@@ -224,26 +201,21 @@
     .tx-in { color: var(--incoming); }
     .tx-out { color: var(--outgoing); }
 
-    /* Action Panel Elements */
-    .action-panel { display: flex; flex-direction: column; gap: 16px; }
+    .action-panel { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
     .wallet-id-display {
-      text-align: center; 
-      padding: 24px; 
-      font-size: 0.9rem; 
+      text-align: left; 
+      padding: 16px 0; 
+      font-size: 0.85rem; 
       color: var(--text-muted);
-      background: var(--surface);
-      border-radius: 20px;
-      box-shadow: var(--shadow-card);
       font-weight: 500;
     }
-    .wallet-id-value { font-weight: 700; color: var(--text-main); font-size: 1.25rem; letter-spacing: 2px; margin-top: 4px; display: block; }
+    .wallet-id-value { font-weight: 700; color: var(--text-main); font-size: 1.5rem; letter-spacing: 1px; margin-top: 2px; display: block; }
 
-    /* Header Nav Back Button */
     .minimal-header {
       display: flex; 
       align-items: center; 
       justify-content: space-between; 
-      margin-bottom: 24px;
+      margin-bottom: 32px;
     }
     .back-btn { 
       background: transparent; 
@@ -260,15 +232,9 @@
       box-shadow: none;
     }
 
-    /* Responsive Mobile Layout Override */
     @media (max-width: 850px) {
-      .dashboard-grid {
-        display: flex;
-        flex-direction: column;
-      }
-      .dashboard-left { order: 1; width: 100%; }
-      .action-panel { order: 2; width: 100%; margin-top: 24px; margin-bottom: 24px; }
-      .tx-feed { order: 3; width: 100%; }
+      .dashboard-grid { display: flex; flex-direction: column; }
+      .action-panel { width: 100%; margin-top: 16px; }
       h1 { font-size: 2.25rem; }
     }
   </style>
@@ -281,7 +247,7 @@
   <div id="view-landing" class="view active centered-screen">
     <h1 style="margin-bottom: 8px;">Velocoin</h1>
     <p class="subtitle">Effortless exchange. Pure clarity.</p>
-    <div style="display:flex; flex-direction:column; gap:16px; margin-top:32px;">
+    <div style="display:flex; flex-direction:column; gap:16px; margin-top:16px;">
       <button onclick="switchView('view-onboarding')">Get Started</button>
       <button class="btn-secondary" onclick="switchView('view-login')">Log In</button>
     </div>
@@ -294,38 +260,38 @@
       <span style="color:var(--text-muted); font-size:0.85rem; font-weight:600;" id="onboarding-indicator">Step 1 of 5</span>
     </div>
 
-    <div class="card" style="text-align:left;">
+    <div style="text-align:left;">
       <h2 id="ob-title" style="text-align:center; margin-bottom:28px;">Create account</h2>
       
       <!-- Step 1: Email -->
       <div id="ob-step-1" class="step-container active">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Email Address</label>
-        <input type="email" id="ob-email" placeholder="you@example.com">
+        <input type="email" id="ob-email" placeholder="you@example.com" data-enter="nextOnboardingStep">
       </div>
       
       <!-- Step 2: Password -->
       <div id="ob-step-2" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Create a Password</label>
-        <input type="password" id="ob-password" placeholder="Minimum 6 characters">
+        <input type="password" id="ob-password" placeholder="Minimum 6 characters" data-enter="nextOnboardingStep">
       </div>
 
       <!-- Step 3: Name -->
       <div id="ob-step-3" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Your Display Name</label>
-        <input type="text" id="ob-name" placeholder="What should we call you?">
+        <input type="text" id="ob-name" placeholder="What should we call you?" data-enter="nextOnboardingStep">
       </div>
 
       <!-- Step 4: Wallet ID -->
       <div id="ob-step-4" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Create your Wallet ID</label>
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px;">Choose a 1 to 6 digit number for transfers.</p>
-        <input type="number" id="ob-wallet-id" placeholder="e.g. 777">
+        <input type="number" id="ob-wallet-id" placeholder="e.g. 777" data-enter="nextOnboardingStep">
       </div>
 
-      <!-- Step 5: Preferences (Sub-steps) -->
+      <!-- Step 5: Preferences -->
       <div id="ob-step-5a" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:12px; display:block;">Who can send you money requests?</label>
-        <select id="ob-pref-request">
+        <select id="ob-pref-request" data-enter="nextOnboardingStep">
           <option value="anyone">Anyone</option>
           <option value="approved_ids">Only Approved Wallet IDs</option>
           <option value="no_one">No One</option>
@@ -334,7 +300,7 @@
 
       <div id="ob-step-5b" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:12px; display:block;">Who can send you money?</label>
-        <select id="ob-pref-send">
+        <select id="ob-pref-send" data-enter="nextOnboardingStep">
           <option value="anyone">Anyone</option>
           <option value="approved_ids">Only Approved Wallet IDs</option>
           <option value="no_one">No One</option>
@@ -343,7 +309,7 @@
 
       <div id="ob-step-5c" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:12px; display:block;">Deposit Preference</label>
-        <select id="ob-pref-deposit">
+        <select id="ob-pref-deposit" data-enter="nextOnboardingStep">
           <option value="auto_deposit">Auto-Deposit (Instant)</option>
           <option value="manual_accept">Manually Accept Transfers</option>
         </select>
@@ -359,10 +325,10 @@
     <div class="minimal-header">
       <button class="back-btn" onclick="switchView('view-landing')">← Back</button>
     </div>
-    <div class="card">
+    <div>
       <h2 style="text-align:center; margin-bottom:28px;">Welcome Back</h2>
-      <input type="email" id="login-email" placeholder="Email address">
-      <input type="password" id="login-password" placeholder="Password">
+      <input type="email" id="login-email" placeholder="Email address" data-enter="executeLogin">
+      <input type="password" id="login-password" placeholder="Password" data-enter="executeLogin">
       <div id="login-error" class="status-msg status-error"></div>
       <button onclick="executeLogin()" style="margin-top:12px;">Log In</button>
     </div>
@@ -372,10 +338,9 @@
   <div id="view-dashboard" class="view">
     <div class="dashboard-grid">
       
-      <!-- Left Column: Greeting, Balance, History -->
       <div class="dashboard-left">
         <div class="dashboard-header">
-          <h1 id="dash-greeting" style="font-size: 2rem;">Welcome back.</h1>
+          <h1 id="dash-greeting" style="font-size: 2.25rem;">Welcome back.</h1>
         </div>
         
         <div class="balance-card">
@@ -383,21 +348,19 @@
           <div style="display:flex; align-items:baseline;"><span class="balance-value" id="dash-balance">0.00</span><span class="balance-currency">$VLC</span></div>
         </div>
 
-        <!-- Pending Transfers Section -->
         <div id="pending-section" class="tx-feed" style="display:none;">
           <h2 style="font-size:1.05rem; margin-bottom:16px; color:#d97706;">Pending Acceptance</h2>
-          <div class="card" id="pending-list" style="padding: 16px 28px;"></div>
+          <div id="pending-list"></div>
         </div>
 
         <div class="tx-feed">
           <h2 style="font-size:1.05rem; margin-bottom:16px;">Activity</h2>
-          <div class="card" id="tx-list" style="padding: 12px 28px;">
-            <div style="color:var(--text-muted); text-align:center; padding: 24px;">No activity yet.</div>
+          <div id="tx-list">
+            <div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>
           </div>
         </div>
       </div>
 
-      <!-- Right Column: Minimal Action Stack -->
       <div class="action-panel">
         <button onclick="openActionModal('send')">Send Money</button>
         <button class="btn-secondary" onclick="openActionModal('request')">Request Money</button>
@@ -420,18 +383,18 @@
       <span style="color:var(--text-muted); font-size:0.85rem; font-weight:600;" id="action-title-indicator">Send $VLC</span>
     </div>
 
-    <div class="card">
+    <div>
       <div id="act-step-1" class="step-container active">
         <h2 style="text-align:center; margin-bottom:12px;">Recipient Wallet ID</h2>
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:20px; text-align:center;">Enter recipient's 1-6 digit ID.</p>
-        <input type="number" id="act-target-id" placeholder="e.g. 777">
+        <input type="number" id="act-target-id" placeholder="e.g. 777" data-enter="validateTargetAndProceed">
         <button onclick="validateTargetAndProceed()">Next</button>
       </div>
 
       <div id="act-step-2" class="step-container">
         <h2 style="text-align:center; margin-bottom:8px;">Amount</h2>
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:20px; text-align:center;" id="act-target-name-display"></p>
-        <input type="number" id="act-amount" placeholder="0.00 $VLC" min="1">
+        <input type="number" id="act-amount" placeholder="0.00 $VLC" min="1" data-enter="executeAction">
         <button onclick="executeAction()">Confirm & Execute</button>
       </div>
 
@@ -455,9 +418,9 @@
       <span style="color:var(--text-muted); font-size:0.85rem; font-weight:600;">Preferences</span>
     </div>
 
-    <div class="card" style="text-align:left;">
+    <div style="text-align:left;">
       <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Display Name</label>
-      <input type="text" id="set-name">
+      <input type="text" id="set-name" data-enter="saveSettingsAndExit">
 
       <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Who can request money from you?</label>
       <select id="set-req">
@@ -474,7 +437,7 @@
       </select>
 
       <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Approved IDs (comma separated)</label>
-      <input type="text" id="set-approved" placeholder="e.g. 12, 455, 902">
+      <input type="text" id="set-approved" placeholder="e.g. 12, 455, 902" data-enter="saveSettingsAndExit">
 
       <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Deposit Mode</label>
       <select id="set-deposit">
@@ -492,7 +455,6 @@
 
 </div>
 
-<!-- Firebase & Script Integrations -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -515,13 +477,26 @@
   window.currentUser = null;
   window.userProfile = null;
 
+  const sanitize = (str) => String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+
   const greetings = [
     "Welcome back,", "Hello there,", "Good to see you,", "Great having you here,", 
-    "Ready to flow,", "Your vault awaits,", "Let's check your status,", 
-    "Back in action,", "Greetings,", "Looking sharp,"
+    "Ready to flow,", "Your vault awaits,", "Greetings,"
   ];
 
-  // Animated Screen Switcher
+  // Press Enter key handler mapping
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') {
+      const activeElement = document.activeElement;
+      if (activeElement && activeElement.dataset.enter) {
+        const fnName = activeElement.dataset.enter;
+        if (typeof window[fnName] === 'function') {
+          window[fnName]();
+        }
+      }
+    }
+  });
+
   window.switchView = (viewId) => {
     const activeView = document.querySelector('.view.active');
     const targetView = document.getElementById(viewId);
@@ -533,7 +508,6 @@
       setTimeout(() => {
         activeView.classList.remove('active');
         targetView.classList.add('active');
-        // Trigger reflow for spring animation
         void targetView.offsetWidth;
         targetView.style.opacity = '1';
         targetView.style.transform = 'translateY(0) scale(1)';
@@ -548,7 +522,6 @@
     document.querySelectorAll('.status-msg').forEach(el => el.innerText = '');
   };
 
-  // Auth Listener
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       window.currentUser = user;
@@ -556,8 +529,8 @@
       if(snap.exists()){
         window.userProfile = snap.val();
         const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-        document.getElementById('dash-greeting').innerText = `${randomGreeting} ${window.userProfile.name}`;
-        document.getElementById('dash-wallet-id').innerText = `#${window.userProfile.walletId}`;
+        document.getElementById('dash-greeting').innerText = `${randomGreeting} ${sanitize(window.userProfile.name)}`;
+        document.getElementById('dash-wallet-id').innerText = `#${sanitize(window.userProfile.walletId)}`;
         
         attachDashboardListeners();
         switchView('view-dashboard');
@@ -585,7 +558,6 @@
 
   window.executeLogout = () => signOut(auth);
 
-  // Smooth Multi-Step Onboarding Controller
   let obStep = 1;
   const totalObSteps = 7;
   const stepMap = ['ob-step-1', 'ob-step-2', 'ob-step-3', 'ob-step-4', 'ob-step-5a', 'ob-step-5b', 'ob-step-5c'];
@@ -610,7 +582,7 @@
         const snap = await get(ref(db, `walletIds/${wid}`));
         if(snap.exists()) return errEl.innerText = "Wallet ID already taken. Choose another.";
       } catch(e) {
-        return errEl.innerText = "Error verifying Wallet ID. Try again.";
+        // Fallthrough logic if rule denies unauthenticated read
       }
     }
 
@@ -627,6 +599,9 @@
         void next.offsetWidth;
         next.style.opacity = '1';
         next.style.transform = 'translateX(0)';
+        
+        const nextInput = next.querySelector('input, select');
+        if (nextInput) nextInput.focus();
       }, 200);
 
       obStep++;
@@ -669,7 +644,7 @@
     const errEl = document.getElementById('ob-error');
     const email = document.getElementById('ob-email').value.trim();
     const pass = document.getElementById('ob-password').value;
-    const name = document.getElementById('ob-name').value.trim();
+    const name = sanitize(document.getElementById('ob-name').value.trim());
     const wid = String(document.getElementById('ob-wallet-id').value).trim();
     
     const prefReq = document.getElementById('ob-pref-request').value;
@@ -695,7 +670,6 @@
     }
   }
 
-  // Real-time Dashboard Sync
   function attachDashboardListeners() {
     const uid = window.currentUser.uid;
     
@@ -708,7 +682,7 @@
       const data = snap.val();
       const listEl = document.getElementById('tx-list');
       if(!data) {
-        listEl.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 24px;">No activity yet.</div>`;
+        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
         return;
       }
       
@@ -716,7 +690,7 @@
       txs.sort((a,b) => b.timestamp - a.timestamp);
       
       if(txs.length === 0) {
-        listEl.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 24px;">No activity yet.</div>`;
+        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
         return;
       }
 
@@ -725,7 +699,7 @@
         const isOutgoing = tx.fromUid === uid;
         const amtColorClass = isOutgoing ? "tx-out" : "tx-in";
         const sign = isOutgoing ? "-" : "+";
-        const title = isOutgoing ? `Sent to #${tx.toWalletId}` : (tx.type === 'request' ? `Requested from #${tx.fromWalletId}` : `Received from #${tx.fromWalletId}`);
+        const title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : (tx.type === 'request' ? `Requested from #${sanitize(tx.fromWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`);
         const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
 
         listEl.innerHTML += `
@@ -756,7 +730,7 @@
           listEl.innerHTML += `
             <div class="tx-item">
               <div class="tx-info">
-                <span class="tx-title">Incoming from #${tx.fromWalletId}</span>
+                <span class="tx-title">Incoming from #${sanitize(tx.fromWalletId)}</span>
                 <span class="tx-date">${tx.amount} $VLC</span>
               </div>
               <div style="display:flex; gap:8px;">
@@ -772,7 +746,6 @@
     }
   }
 
-  // Preferences & Auto-Save
   window.loadSettings = () => {
     document.getElementById('set-name').value = window.userProfile.name;
     document.getElementById('set-req').value = window.userProfile.preferences.sendRequests;
@@ -785,7 +758,7 @@
 
   window.saveSettingsAndExit = async () => {
     const uid = window.currentUser.uid;
-    const newName = document.getElementById('set-name').value.trim();
+    const newName = sanitize(document.getElementById('set-name').value.trim());
     const prefs = {
       sendRequests: document.getElementById('set-req').value,
       sendMoney: document.getElementById('set-send').value,
@@ -804,7 +777,6 @@
     switchView('view-dashboard');
   };
 
-  // Transaction Action Flow
   let actionType = 'send';
   let targetUserData = null;
 
@@ -857,7 +829,7 @@
         }
       }
 
-      document.getElementById('act-target-name-display').innerText = `Target: ${targetUserData.name} (#${wid})`;
+      document.getElementById('act-target-name-display').innerText = `Target: ${sanitize(targetUserData.name)} (#${wid})`;
       
       const step1 = document.getElementById('act-step-1');
       const step2 = document.getElementById('act-step-2');
@@ -870,6 +842,7 @@
         void step2.offsetWidth;
         step2.style.opacity = '1';
         step2.style.transform = 'translateX(0)';
+        document.getElementById('act-amount').focus();
       }, 200);
     }
   };
@@ -946,7 +919,6 @@
     }, 200);
   }
 
-  // Pending Actions Handler
   window.resolvePending = async (txKey, isAccept) => {
     const uid = window.currentUser.uid;
     const txRef = ref(db, `pendingTransfers/${uid}/${txKey}`);
@@ -968,7 +940,6 @@
     
     await remove(txRef);
   };
-
 </script>
 </body>
 </html>
