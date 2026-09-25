@@ -4,6 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Velocoin</title>
+
+  <!-- Favicon & Touch Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  
+  <!-- Mobile & PWA Theme Color -->
+  <meta name="theme-color" content="#4f46e5">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -60,6 +68,22 @@
       flex-direction: column;
       opacity: 1;
       transform: translateY(0) scale(1);
+    }
+
+    /* Logo Styles */
+    .app-logo-landing {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      margin-bottom: 16px;
+      border-radius: 20px;
+    }
+
+    .app-logo-dash {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      border-radius: 12px;
     }
 
     h1 { font-size: 2.75rem; font-weight: 700; letter-spacing: -1px; color: var(--text-main); }
@@ -159,7 +183,12 @@
       align-items: start;
     }
 
-    .dashboard-header { margin-bottom: 24px; }
+    .dashboard-header { 
+      margin-bottom: 24px; 
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
     
     .balance-card {
       padding: 32px 0;
@@ -240,8 +269,11 @@
 
   <!-- LANDING VIEW -->
   <div id="view-landing" class="view active centered-screen">
-    <h1 style="margin-bottom: 8px;">Velocoin</h1>
-    <p class="subtitle">Effortless exchange. Pure clarity.</p>
+    <div style="display: flex; flex-direction: column; align-items: center;">
+      <img src="logo.png" alt="Velocoin Logo" class="app-logo-landing">
+      <h1 style="margin-bottom: 8px;">Velocoin</h1>
+      <p class="subtitle">Effortless exchange. Pure clarity.</p>
+    </div>
     <div style="display:flex; flex-direction:column; gap:16px; margin-top:16px; width:100%;">
       <button onclick="switchView('view-onboarding')">Get Started</button>
       <button class="btn-secondary" onclick="switchView('view-login')">Log In</button>
@@ -335,6 +367,7 @@
       
       <div class="dashboard-left">
         <div class="dashboard-header">
+          <img src="logo.png" alt="Velocoin Logo" class="app-logo-dash">
           <h1 id="dash-greeting" style="font-size: 2.25rem;">Welcome back.</h1>
         </div>
         
