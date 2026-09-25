@@ -617,7 +617,6 @@
         window.userProfile = snap.val();
         const lastLogin = window.userProfile.lastLoginTime || 0;
         
-        // Update last login timestamp
         await update(ref(db, `users/${user.uid}`), { lastLoginTime: Date.now() });
 
         const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
@@ -627,7 +626,6 @@
         attachDashboardListeners();
         switchView('view-dashboard');
 
-        // Check & Trigger Notifications Modal
         checkNotifications(lastLogin);
       } else {
         switchView('view-onboarding');
@@ -643,8 +641,7 @@
     const uid = window.currentUser.uid;
     const notifs = [];
 
-    // Condition A: Manual Accept with pending transfers
-    if (window.userProfile.preferences.depositMode === 'manual_accept') {
+    if (window.userProfile.preferences && window.userProfile.preferences.depositMode === 'manual_accept') {
       const pendingSnap = await get(ref(db, `pendingTransfers/${uid}`));
       if (pendingSnap.exists()) {
         const count = Object.keys(pendingSnap.val()).length;
@@ -654,7 +651,6 @@
       }
     }
 
-    // Condition B: Money requests received since last login
     const txSnap = await get(ref(db, 'transactions'));
     if (txSnap.exists()) {
       const txs = Object.values(txSnap.val());
@@ -904,7 +900,7 @@
       });
     });
 
-    if (window.userProfile.preferences.depositMode === 'manual_accept') {
+    if (window.userProfile.preferences && window.userProfile.preferences.depositMode === 'manual_accept') {
       document.getElementById('pending-section').style.display = 'block';
       onValue(ref(db, `pendingTransfers/${uid}`), snap => {
         const data = snap.val();
@@ -937,11 +933,11 @@
   }
 
   window.loadSettings = () => {
-    document.getElementById('set-name').value = window.userProfile.name;
-    document.getElementById('set-req').value = window.userProfile.preferences.sendRequests;
-    document.getElementById('set-send').value = window.userProfile.preferences.sendMoney;
-    document.getElementById('set-deposit').value = window.userProfile.preferences.depositMode;
-    document.getElementById('set-approved').value = window.userProfile.preferences.approvedIds || "";
+    document.getElementById('set-name').value = window.userProfile.name || "";
+    document.getElementById('set-req').value = window.userProfile.preferences?.sendRequests || "anyone";
+    document.getElementById('set-send').value = window.userProfile.preferences?.sendMoney || "anyone";
+    document.getElementById('set-deposit').value = window.userProfile.preferences?.depositMode || "auto_deposit";
+    document.getElementById('set-approved').value = window.userProfile.preferences?.approvedIds || "";
     document.getElementById('set-status').innerText = "";
     switchView('view-settings');
   };
@@ -977,13 +973,21 @@
     document.getElementById('act-amount').value = "";
     document.getElementById('act-error').innerText = "";
     
-    document.querySelectorAll('#view-action .step-container').forEach(el => el.classList.remove('active'));
+    // Reset all action steps
+    document.querySelectorAll('#view-action .step-container').forEach(el => {
+      el.classList.remove('active');
+      el.style.opacity = '0';
+    });
+
     const step1 = document.getElementById('act-step-1');
     step1.classList.add('active');
     step1.style.opacity = '1';
     step1.style.transform = 'translateX(0)';
     
     switchView('view-action');
+    setTimeout(() => {
+      document.getElementById('act-target-id').focus();
+    }, 100);
   };
 
   window.validateTargetAndProceed = async () => {
@@ -991,49 +995,57 @@
     const errEl = document.getElementById('act-error');
     errEl.innerText = "";
 
-    if (!wid || wid === window.userProfile.walletId) {
-      return errEl.innerText = "Enter a valid distinct Wallet ID.";
+    if (!wid) {
+      return errEl.innerText = "Please enter a Wallet ID.";
     }
 
-    const snap = await get(ref(db, `walletIds/${wid}`));
-    if (!snap.exists()) return errEl.innerText = "Wallet ID not found.";
-    
-    const targetUid = snap.val().uid;
-    const userSnap = await get(ref(db, `users/${targetUid}`));
-    
-    if (userSnap.exists()) {
-      targetUserData = { uid: targetUid, walletId: wid, ...userSnap.val() };
-      
-      const myId = window.userProfile.walletId;
-      const tPrefs = targetUserData.preferences;
-      
-      if (actionType === 'send') {
-        if (tPrefs.sendMoney === 'no_one') return errEl.innerText = "This user does not accept incoming transfers.";
-        if (tPrefs.sendMoney === 'approved_ids' && !tPrefs.approvedIds.split(',').includes(myId)) {
-          return errEl.innerText = "You are not on their approved senders list.";
-        }
-      } else {
-        if (tPrefs.sendRequests === 'no_one') return errEl.innerText = "This user does not accept requests.";
-        if (tPrefs.sendRequests === 'approved_ids' && !tPrefs.approvedIds.split(',').includes(myId)) {
-          return errEl.innerText = "You are not on their approved requesters list.";
-        }
-      }
+    if (wid === window.userProfile.walletId) {
+      return errEl.innerText = "You cannot send or request money from yourself.";
+    }
 
-      document.getElementById('act-target-name-display').innerText = `Target: ${sanitize(targetUserData.name)} (#${wid})`;
+    try {
+      const snap = await get(ref(db, `walletIds/${wid}`));
+      if (!snap.exists()) return errEl.innerText = "Wallet ID not found.";
       
-      const step1 = document.getElementById('act-step-1');
-      const step2 = document.getElementById('act-step-2');
+      const targetUid = snap.val().uid;
+      const userSnap = await get(ref(db, `users/${targetUid}`));
       
-      step1.style.opacity = '0';
-      step1.style.transform = 'translateX(-20px)';
-      setTimeout(() => {
-        step1.classList.remove('active');
-        step2.classList.add('active');
-        void step2.offsetWidth;
-        step2.style.opacity = '1';
-        step2.style.transform = 'translateX(0)';
-        document.getElementById('act-amount').focus();
-      }, 200);
+      if (userSnap.exists()) {
+        targetUserData = { uid: targetUid, walletId: wid, ...userSnap.val() };
+        
+        const myId = window.userProfile.walletId;
+        const tPrefs = targetUserData.preferences || {};
+        
+        if (actionType === 'send') {
+          if (tPrefs.sendMoney === 'no_one') return errEl.innerText = "This user does not accept incoming transfers.";
+          if (tPrefs.sendMoney === 'approved_ids' && (!tPrefs.approvedIds || !tPrefs.approvedIds.split(',').includes(myId))) {
+            return errEl.innerText = "You are not on their approved senders list.";
+          }
+        } else {
+          if (tPrefs.sendRequests === 'no_one') return errEl.innerText = "This user does not accept requests.";
+          if (tPrefs.sendRequests === 'approved_ids' && (!tPrefs.approvedIds || !tPrefs.approvedIds.split(',').includes(myId))) {
+            return errEl.innerText = "You are not on their approved requesters list.";
+          }
+        }
+
+        document.getElementById('act-target-name-display').innerText = `Target: ${sanitize(targetUserData.name)} (#${wid})`;
+        
+        const step1 = document.getElementById('act-step-1');
+        const step2 = document.getElementById('act-step-2');
+        
+        step1.style.opacity = '0';
+        step1.style.transform = 'translateX(-20px)';
+        setTimeout(() => {
+          step1.classList.remove('active');
+          step2.classList.add('active');
+          void step2.offsetWidth;
+          step2.style.opacity = '1';
+          step2.style.transform = 'translateX(0)';
+          document.getElementById('act-amount').focus();
+        }, 200);
+      }
+    } catch(e) {
+      errEl.innerText = "Error looking up user: " + e.message;
     }
   };
 
@@ -1062,7 +1074,8 @@
 
         if (!txSuccess) return errEl.innerText = "Insufficient balance.";
 
-        if (targetUserData.preferences.depositMode === 'manual_accept') {
+        const tPrefs = targetUserData.preferences || {};
+        if (tPrefs.depositMode === 'manual_accept') {
           await push(ref(db, `pendingTransfers/${targetUserData.uid}`), {
             fromUid: myUid, fromWalletId: window.userProfile.walletId, amount: amt, timestamp: Date.now()
           });
@@ -1083,12 +1096,16 @@
         errEl.innerText = "Transfer failed: " + e.message;
       }
     } else {
-      await push(ref(db, 'transactions'), {
-        fromUid: myUid, fromWalletId: window.userProfile.walletId,
-        toUid: targetUserData.uid, toWalletId: targetUserData.walletId,
-        amount: amt, type: 'request', timestamp: Date.now()
-      });
-      showActionSuccess(`Request for ${amt} $VLC sent.`);
+      try {
+        await push(ref(db, 'transactions'), {
+          fromUid: myUid, fromWalletId: window.userProfile.walletId,
+          toUid: targetUserData.uid, toWalletId: targetUserData.walletId,
+          amount: amt, type: 'request', timestamp: Date.now()
+        });
+        showActionSuccess(`Request for ${amt} $VLC sent.`);
+      } catch(e) {
+        errEl.innerText = "Request failed: " + e.message;
+      }
     }
   };
 
