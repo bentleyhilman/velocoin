@@ -256,6 +256,52 @@
       box-shadow: none;
     }
 
+    /* Notification Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      background: white;
+      border-radius: 24px;
+      padding: 32px;
+      width: 90%;
+      max-width: 440px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      transform: translateY(10px);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.active .modal-card {
+      transform: translateY(0);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .modal-title { font-weight: 700; font-size: 1.25rem; }
+    .notif-item {
+      background: var(--surface-subtle);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      font-size: 0.9rem;
+    }
+
     @media (max-width: 850px) {
       .dashboard-grid { display: flex; flex-direction: column; }
       .action-panel { width: 100%; margin-top: 16px; }
@@ -483,6 +529,19 @@
 
 </div>
 
+<!-- NOTIFICATION MODAL -->
+<div id="notif-modal" class="modal-overlay">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 class="modal-title">Notifications</h3>
+      <button class="btn-text" onclick="closeNotifications()" style="padding:0;">✕</button>
+    </div>
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px;">Updates since your last login:</p>
+    <div id="notif-list"></div>
+    <button onclick="closeNotifications()" style="margin-top:16px;">Got it</button>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -556,12 +615,20 @@
       const snap = await get(ref(db, `users/${user.uid}`));
       if (snap.exists()) {
         window.userProfile = snap.val();
+        const lastLogin = window.userProfile.lastLoginTime || 0;
+        
+        // Update last login timestamp
+        await update(ref(db, `users/${user.uid}`), { lastLoginTime: Date.now() });
+
         const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
         document.getElementById('dash-greeting').innerText = `${randomGreeting} ${sanitize(window.userProfile.name)}`;
         document.getElementById('dash-wallet-id').innerText = `#${sanitize(window.userProfile.walletId)}`;
         
         attachDashboardListeners();
         switchView('view-dashboard');
+
+        // Check & Trigger Notifications Modal
+        checkNotifications(lastLogin);
       } else {
         switchView('view-onboarding');
       }
@@ -571,6 +638,42 @@
       switchView('view-landing');
     }
   });
+
+  async function checkNotifications(lastLoginTime) {
+    const uid = window.currentUser.uid;
+    const notifs = [];
+
+    // Condition A: Manual Accept with pending transfers
+    if (window.userProfile.preferences.depositMode === 'manual_accept') {
+      const pendingSnap = await get(ref(db, `pendingTransfers/${uid}`));
+      if (pendingSnap.exists()) {
+        const count = Object.keys(pendingSnap.val()).length;
+        if (count > 0) {
+          notifs.push(`You have <strong>${count} pending transfer(s)</strong> awaiting your manual acceptance.`);
+        }
+      }
+    }
+
+    // Condition B: Money requests received since last login
+    const txSnap = await get(ref(db, 'transactions'));
+    if (txSnap.exists()) {
+      const txs = Object.values(txSnap.val());
+      const newRequests = txs.filter(t => t.toUid === uid && t.type === 'request' && t.timestamp > lastLoginTime);
+      newRequests.forEach(req => {
+        notifs.push(`<strong>#${sanitize(req.fromWalletId)}</strong> requested <strong>$${req.amount} VLC</strong> from you.`);
+      });
+    }
+
+    if (notifs.length > 0) {
+      const listEl = document.getElementById('notif-list');
+      listEl.innerHTML = notifs.map(n => `<div class="notif-item">${n}</div>`).join('');
+      document.getElementById('notif-modal').classList.add('active');
+    }
+  }
+
+  window.closeNotifications = () => {
+    document.getElementById('notif-modal').classList.remove('active');
+  };
 
   window.executeLogin = async () => {
     const email = document.getElementById('login-email').value.trim().toLowerCase();
@@ -721,6 +824,7 @@
 
       const profileData = {
         email, name, walletId: wid,
+        lastLoginTime: Date.now(),
         preferences: { sendRequests: prefReq, sendMoney: prefSend, depositMode: prefDep, approvedIds: "" }
       };
 
@@ -980,8 +1084,8 @@
       }
     } else {
       await push(ref(db, 'transactions'), {
-        fromUid: targetUserData.uid, fromWalletId: targetUserData.walletId,
-        toUid: myUid, toWalletId: window.userProfile.walletId,
+        fromUid: myUid, fromWalletId: window.userProfile.walletId,
+        toUid: targetUserData.uid, toWalletId: targetUserData.walletId,
         amount: amt, type: 'request', timestamp: Date.now()
       });
       showActionSuccess(`Request for ${amt} $VLC sent.`);
