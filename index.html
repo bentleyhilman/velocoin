@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Velocoin</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; margin: 0; padding: 20px; color: #333; }
+    .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    h1, h2 { text-align: center; color: #1a73e8; margin-top: 0; }
+    .card { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .balance { font-size: 32px; font-weight: bold; color: #2e7d32; text-align: center; margin: 10px 0; }
+    input, button, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+    button { background: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #1557b0; }
+    .hidden { display: none; }
+    .tx-item { border-bottom: 1px solid #eee; padding: 8px 0; font-size: 14px; }
+    .tx-item:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Velocoin</h1>
+
+  <!-- Auth Section -->
+  <div id="auth-section" class="card">
+    <h2>Sign In or Register</h2>
+    <input type="email" id="email" placeholder="Email address">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="signUp()">Create Account</button>
+    <button onclick="login()" style="background:#424242;">Log In</button>
+    <p id="auth-error" style="color:red; font-size:14px; text-align:center;"></p>
+  </div>
+
+  <!-- Dashboard Section (Hidden until logged in) -->
+  <div id="dashboard-section" class="hidden">
+    <div class="card">
+      <div style="display:flex; justify-between; align-items:center;">
+        <span>Welcome, <strong id="user-display"></strong></span>
+        <button onclick="logout()" style="width:auto; padding:6px 12px; font-size:12px; background:#d32f2f;">Logout</button>
+      </div>
+      <div class="balance" id="user-balance">0 FB</div>
+    </div>
+
+    <!-- Transfer Form -->
+    <div class="card">
+      <h3>Send Coins</h3>
+      <select id="recipient-select">
+        <option value="">Select a friend...</option>
+      </select>
+      <input type="number" id="send-amount" placeholder="Amount" min="1">
+      <input type="text" id="send-memo" placeholder="Memo (e.g., Pizza)">
+      <button onclick="sendCoins()">Send Money</button>
+      <p id="tx-status" style="font-size:14px; text-align:center;"></p>
+    </div>
+
+    <!-- Live Transaction History -->
+    <div class="card">
+      <h3>Live Activity Feed</h3>
+      <div id="tx-feed">No transactions yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import { getDatabase, ref, set, get, onValue, push, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+ const firebaseConfig = {
+  apiKey: "AIzaSyAr6tZyeiMZS_JkSjI66FLtmma6Hx8mxDs",
+  authDomain: "velocoin-66ed2.firebaseapp.com",
+  projectId: "velocoin-66ed2",
+  storageBucket: "velocoin-66ed2.firebasestorage.app",
+  messagingSenderId: "943947327347",
+  appId: "1:943947327347:web:f19ff29d589e89ed9e8706",
+  measurementId: "G-1T2Y1JKTJD"
+};
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  let currentUser = null;
+  let allUsers = {};
+
+  // Auth State Listener
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      currentUser = user;
+      document.getElementById("auth-section").classList.add("hidden");
+      document.getElementById("dashboard-section").classList.remove("hidden");
+      document.getElementById("user-display").innerText = user.email.split('@')[0];
+      
+      listenToBalance();
+      loadUsersList();
+      listenToTransactions();
+    } else {
+      currentUser = null;
+      document.getElementById("auth-section").classList.remove("hidden");
+      document.getElementById("dashboard-section").classList.add("hidden");
+    }
+  });
+
+  // User Registration
+  window.signUp = async () => {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    try {
+      const res = await createUserWithEmailAndPassword(auth, email, password);
+      // Give new user 100 starter coins and register profile
+      await set(ref(db, `users/${res.user.uid}`), { email: email, name: email.split('@')[0] });
+      await set(ref(db, `balances/${res.user.uid}`), 100);
+    } catch (err) {
+      document.getElementById("auth-error").innerText = err.message;
+    }
+  };
+
+  // Login
+  window.login = async () => {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      document.getElementById("auth-error").innerText = err.message;
+    }
+  };
+
+  // Logout
+  window.logout = () => signOut(auth);
+
+  // Real-time Balance Synchronization
+  function listenToBalance() {
+    onValue(ref(db, `balances/${currentUser.uid}`), (snapshot) => {
+      const val = snapshot.val();
+      document.getElementById("user-balance").innerText = `${val !== null ? val : 0} FB`;
+    });
+  }
+
+  // Populate recipient list
+  function loadUsersList() {
+    onValue(ref(db, "users"), (snapshot) => {
+      allUsers = snapshot.val() || {};
+      const select = document.getElementById("recipient-select");
+      select.innerHTML = '<option value="">Select a friend...</option>';
+      Object.keys(allUsers).forEach(uid => {
+        if (uid !== currentUser.uid) {
+          const opt = document.createElement("option");
+          opt.value = uid;
+          opt.innerText = allUsers[uid].name;
+          select.appendChild(opt);
+        }
+      });
+    });
+  }
+
+  // Atomic Real-Time Coin Transfer (Prevents Race Conditions and Cheating)
+  window.sendCoins = async () => {
+    const recipientUid = document.getElementById("recipient-select").value;
+    const amount = parseInt(document.getElementById("send-amount").value);
+    const memo = document.getElementById("send-memo").value || "Transfer";
+    const status = document.getElementById("tx-status");
+
+    if (!recipientUid || isNaN(amount) || amount <= 0) {
+      status.innerText = "❌ Please enter a valid recipient and amount.";
+      status.style.color = "red";
+      return;
+    }
+
+    try {
+      // 1. Deduct from Sender
+      const senderRef = ref(db, `balances/${currentUser.uid}`);
+      let senderSuccess = false;
+
+      await runTransaction(senderRef, (currentBalance) => {
+        if ((currentBalance || 0) >= amount) {
+          senderSuccess = true;
+          return currentBalance - amount;
+        } else {
+          senderSuccess = false;
+          return; // Abort transaction if insufficient funds
+        }
+      });
+
+      if (!senderSuccess) {
+        status.innerText = "❌ Insufficient balance!";
+        status.style.color = "red";
+        return;
+      }
+
+      // 2. Add to Recipient
+      const recipientRef = ref(db, `balances/${recipientUid}`);
+      await runTransaction(recipientRef, (currentBalance) => {
+        return (currentBalance || 0) + amount;
+      });
+
+      // 3. Log Transaction
+      const txRef = ref(db, "transactions");
+      await push(txRef, {
+        from: currentUser.uid,
+        fromName: allUsers[currentUser.uid]?.name || "Someone",
+        to: recipientUid,
+        toName: allUsers[recipientUid]?.name || "Friend",
+        amount: amount,
+        memo: memo,
+        timestamp: Date.now()
+      });
+
+      status.innerText = "✅ Sent successfully!";
+      status.style.color = "green";
+      document.getElementById("send-amount").value = "";
+      document.getElementById("send-memo").value = "";
+    } catch (err) {
+      status.innerText = "❌ Transfer failed: " + err.message;
+      status.style.color = "red";
+    }
+  };
+
+  // Real-time Activity Feed
+  function listenToTransactions() {
+    onValue(ref(db, "transactions"), (snapshot) => {
+      const data = snapshot.val();
+      const feed = document.getElementById("tx-feed");
+      if (!data) {
+        feed.innerText = "No transactions yet.";
+        return;
+      }
+      feed.innerHTML = "";
+      const txList = Object.values(data).reverse().slice(0, 10); // Show last 10
+      txList.forEach(tx => {
+        const div = document.createElement("div");
+        div.className = "tx-item";
+        div.innerHTML = `<strong>${tx.fromName}</strong> sent <strong>${tx.amount} FB</strong> to <strong>${tx.toName}</strong> <em>("${tx.memo}")</em>`;
+        feed.appendChild(div);
+      });
+    });
+  }
+</script>
+
+</body>
+</html>
