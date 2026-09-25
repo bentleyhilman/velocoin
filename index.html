@@ -393,6 +393,11 @@
         <button onclick="openActionModal('send')">Send Money</button>
         <button class="btn-secondary" onclick="openActionModal('request')">Request Money</button>
         
+        <!-- ADMIN ONLY BUTTON -->
+        <button id="admin-panel-btn" class="btn-secondary" style="display: none; border: 1px dashed var(--primary); color: var(--primary);" onclick="switchView('view-admin')">
+          ⚙️ Admin Panel
+        </button>
+
         <div class="wallet-id-display">
           Your Wallet ID
           <span class="wallet-id-value" id="dash-wallet-id">#---</span>
@@ -481,6 +486,28 @@
     </div>
   </div>
 
+  <!-- ADMIN PANEL VIEW -->
+  <div id="view-admin" class="view centered-screen">
+    <div class="minimal-header">
+      <button class="back-btn" onclick="switchView('view-dashboard')">← Back to Dashboard</button>
+      <span style="color:var(--primary); font-size:0.85rem; font-weight:700;">ADMIN CONTROL</span>
+    </div>
+
+    <div style="width:100%; text-align:left;">
+      <h2 style="text-align:center; margin-bottom:20px;">Grant $VLC</h2>
+
+      <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Target Wallet ID</label>
+      <input type="number" id="admin-target-wid" placeholder="e.g. 777" data-enter="executeAdminGrant">
+
+      <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Amount ($VLC)</label>
+      <input type="number" id="admin-grant-amt" placeholder="1000" data-enter="executeAdminGrant">
+
+      <div id="admin-status" class="status-msg"></div>
+
+      <button onclick="executeAdminGrant()" style="margin-top:12px;">Inject Funds</button>
+    </div>
+  </div>
+
 </div>
 
 <script type="module">
@@ -501,6 +528,8 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getDatabase(app);
+
+  const ADMIN_UID = "OgYEATnQVHQUg4g9AYbOXb5PmV23";
 
   window.currentUser = null;
   window.userProfile = null;
@@ -552,6 +581,13 @@
 
     if (user) {
       window.currentUser = user;
+
+      // Show Admin Button ONLY for your UID
+      const adminBtn = document.getElementById('admin-panel-btn');
+      if (adminBtn) {
+        adminBtn.style.display = (user.uid === ADMIN_UID) ? 'block' : 'none';
+      }
+
       const snap = await get(ref(db, `users/${user.uid}`));
       if (snap.exists()) {
         window.userProfile = snap.val();
@@ -567,6 +603,7 @@
     } else {
       window.currentUser = null;
       window.userProfile = null;
+      document.getElementById('admin-panel-btn').style.display = 'none';
       switchView('view-landing');
     }
   });
@@ -1024,6 +1061,64 @@
     }
     
     await remove(txRef);
+  };
+
+  // ADMIN GRANT FUNCTION
+  window.executeAdminGrant = async () => {
+    const statusEl = document.getElementById('admin-status');
+    statusEl.className = "status-msg";
+    statusEl.innerText = "";
+
+    // Security check
+    if (!window.currentUser || window.currentUser.uid !== ADMIN_UID) {
+      statusEl.className = "status-msg status-error";
+      statusEl.innerText = "Unauthorized access.";
+      return;
+    }
+
+    const wid = String(document.getElementById('admin-target-wid').value).trim();
+    const amt = parseFloat(document.getElementById('admin-grant-amt').value);
+
+    if (!wid || isNaN(amt) || amt <= 0) {
+      statusEl.className = "status-msg status-error";
+      statusEl.innerText = "Enter a valid Wallet ID and positive amount.";
+      return;
+    }
+
+    try {
+      // Lookup target user by Wallet ID
+      const snap = await get(ref(db, `walletIds/${wid}`));
+      if (!snap.exists()) {
+        statusEl.className = "status-msg status-error";
+        statusEl.innerText = "Wallet ID not found.";
+        return;
+      }
+
+      const targetUid = snap.val().uid;
+
+      // Increment balance atomically
+      await runTransaction(ref(db, `balances/${targetUid}`), (current) => (current || 0) + amt);
+
+      // Record system grant in transactions
+      await push(ref(db, 'transactions'), {
+        fromUid: 'SYSTEM_GRANT',
+        fromWalletId: '000',
+        toUid: targetUid,
+        toWalletId: wid,
+        amount: amt,
+        type: 'transfer',
+        timestamp: Date.now()
+      });
+
+      statusEl.className = "status-msg status-success";
+      statusEl.innerText = `Granted ${amt} $VLC to Wallet #${wid}!`;
+      document.getElementById('admin-target-wid').value = "";
+      document.getElementById('admin-grant-amt').value = "";
+
+    } catch (e) {
+      statusEl.className = "status-msg status-error";
+      statusEl.innerText = "Error: " + e.message;
+    }
   };
 </script>
 </body>
