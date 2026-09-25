@@ -269,7 +269,7 @@
         <input type="email" id="ob-email" placeholder="you@example.com" data-enter="nextOnboardingStep">
       </div>
       
-      <!-- Step 2: Password -->
+      <!-- Step 2: Password (Triggers createUserWithEmailAndPassword) -->
       <div id="ob-step-2" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Create a Password</label>
         <input type="password" id="ob-password" placeholder="Minimum 6 characters" data-enter="nextOnboardingStep">
@@ -281,7 +281,7 @@
         <input type="text" id="ob-name" placeholder="What should we call you?" data-enter="nextOnboardingStep">
       </div>
 
-      <!-- Step 4: Wallet ID -->
+      <!-- Step 4: Wallet ID (Now Authenticated for Database Read) -->
       <div id="ob-step-4" class="step-container">
         <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:8px; display:block;">Create your Wallet ID</label>
         <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:16px;">Choose a 1 to 6 digit number for transfers.</p>
@@ -538,7 +538,8 @@
         attachDashboardListeners();
         switchView('view-dashboard');
       } else {
-        switchView('view-landing');
+        // User is authenticated in Auth, but hasn't finished database profile setup yet
+        switchView('view-onboarding');
       }
     } else {
       window.currentUser = null;
@@ -569,10 +570,40 @@
     const errEl = document.getElementById('ob-error');
     errEl.innerText = "";
     
-    if (obStep === 1 && !document.getElementById('ob-email').value.trim()) return errEl.innerText = "Email required.";
-    if (obStep === 2 && document.getElementById('ob-password').value.length < 6) return errEl.innerText = "Password must be 6+ chars.";
-    if (obStep === 3 && !document.getElementById('ob-name').value.trim()) return errEl.innerText = "Name required.";
+    // STEP 1: Email Validation
+    if (obStep === 1) {
+      const email = document.getElementById('ob-email').value.trim().toLowerCase();
+      if (!email) return errEl.innerText = "Email required.";
+    }
+
+    // STEP 2: Password & Early Account Creation (AUTHENTICATE IMMEDIATELY)
+    if (obStep === 2) {
+      const email = document.getElementById('ob-email').value.trim().toLowerCase();
+      const pass = document.getElementById('ob-password').value;
+      if (pass.length < 6) return errEl.innerText = "Password must be 6+ chars.";
+
+      isCreatingAccount = true;
+      document.getElementById('ob-next-btn').innerText = "Creating Account...";
+      
+      try {
+        if (!auth.currentUser) {
+          await createUserWithEmailAndPassword(auth, email, pass);
+        }
+      } catch(e) {
+        isCreatingAccount = false;
+        document.getElementById('ob-next-btn').innerText = "Continue";
+        return errEl.innerText = e.message.replace('Firebase:', '').trim();
+      }
+      
+      document.getElementById('ob-next-btn').innerText = "Continue";
+    }
+
+    // STEP 3: Display Name
+    if (obStep === 3 && !document.getElementById('ob-name').value.trim()) {
+      return errEl.innerText = "Name required.";
+    }
     
+    // STEP 4: Wallet ID (Now safely authenticated for reading database)
     if (obStep === 4) {
       const rawVal = document.getElementById('ob-wallet-id').value;
       const wid = String(rawVal).trim();
@@ -585,7 +616,7 @@
         const snap = await get(ref(db, `walletIds/${wid}`));
         if (snap.exists()) return errEl.innerText = "Wallet ID already taken. Choose another.";
       } catch(e) {
-        // Fallthrough if unauthenticated reads are restricted
+        return errEl.innerText = "Could not verify Wallet ID availability.";
       }
     }
 
@@ -611,10 +642,10 @@
       document.getElementById('onboarding-indicator').innerText = `Step ${obStep <= 4 ? obStep : 5} of 5`;
       
       if (obStep === totalObSteps) {
-        document.getElementById('ob-next-btn').innerText = "Create Account";
+        document.getElementById('ob-next-btn').innerText = "Complete Setup";
       }
     } else {
-      executeRegistration();
+      finalizeRegistration();
     }
   };
 
@@ -643,10 +674,9 @@
     }
   };
 
-  async function executeRegistration() {
+  async function finalizeRegistration() {
     const errEl = document.getElementById('ob-error');
     const email = document.getElementById('ob-email').value.trim().toLowerCase();
-    const pass = document.getElementById('ob-password').value;
     const name = sanitize(document.getElementById('ob-name').value.trim());
     const wid = String(document.getElementById('ob-wallet-id').value).trim();
     
@@ -654,12 +684,10 @@
     const prefSend = document.getElementById('ob-pref-send').value;
     const prefDep = document.getElementById('ob-pref-deposit').value;
 
-    document.getElementById('ob-next-btn').innerText = "Creating Vault...";
-    isCreatingAccount = true;
+    document.getElementById('ob-next-btn').innerText = "Setting Up Vault...";
 
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      const uid = cred.user.uid;
+      const uid = auth.currentUser.uid;
       
       const profileData = {
         email, name, walletId: wid,
@@ -672,7 +700,7 @@
         set(ref(db, `balances/${uid}`), 100)
       ]);
 
-      window.currentUser = cred.user;
+      window.currentUser = auth.currentUser;
       window.userProfile = profileData;
 
       document.getElementById('dash-greeting').innerText = `${greetings[0]} ${sanitize(profileData.name)}`;
@@ -685,7 +713,7 @@
     } catch(e) {
       isCreatingAccount = false;
       errEl.innerText = e.message.replace('Firebase:', '').trim();
-      document.getElementById('ob-next-btn').innerText = "Create Account";
+      document.getElementById('ob-next-btn').innerText = "Complete Setup";
     }
   }
 
