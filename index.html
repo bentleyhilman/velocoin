@@ -756,7 +756,7 @@
       await set(ref(db, `users/${uid}`), profileData);
 
       try {
-        await set(ref(db, `balances/${uid}`), 100);
+        await set(ref(db, `balances/${uid}`), 0);
       } catch(e) {
         console.warn("Could not set initial balance:", e);
       }
