@@ -378,13 +378,9 @@
           <div style="display:flex; align-items:baseline;"><span class="balance-value" id="dash-balance">0.00</span><span class="balance-currency">$VLC</span></div>
         </div>
 
-        <div id="requests-section" class="tx-feed" style="display:none;">
-          <h2 style="font-size:1.05rem; margin-bottom:16px; color:var(--primary);">Pending Requests</h2>
-          <div id="requests-list"></div>
-        </div>
-
+        <!-- UNIFIED PENDING TRANSACTIONS SECTION -->
         <div id="pending-section" class="tx-feed" style="display:none;">
-          <h2 style="font-size:1.05rem; margin-bottom:16px; color:var(--pending);">Pending Acceptance</h2>
+          <h2 style="font-size:1.05rem; margin-bottom:16px; color:var(--pending);">Pending Transactions</h2>
           <div id="pending-list"></div>
         </div>
 
@@ -545,6 +541,9 @@
   let isCreatingAccount = false;
   const processingPending = new Set();
   const processingRequests = new Set();
+
+  let pendingTransfersData = {};
+  let pendingRequestsData = {};
 
   const sanitize = (str) => String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
@@ -800,14 +799,29 @@
   function renderTxHTML(tx, uid) {
     const isOutgoing = tx.fromUid === uid;
     const isPending = tx.status === 'pending';
+    const isRequest = tx.type === 'request';
     
     let amtColorClass = isOutgoing ? "tx-out" : "tx-in";
     if (isPending) amtColorClass = "tx-pending";
 
-    const sign = isOutgoing ? "-" : "+";
-    let title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
+    let sign = isOutgoing ? "-" : "+";
+    if (isPending && isRequest) {
+      sign = isOutgoing ? "+" : "-"; 
+    }
+
+    let title = "";
+    if (isRequest) {
+      title = isOutgoing ? `Requested from #${sanitize(tx.toWalletId)}` : `Requested by #${sanitize(tx.fromWalletId)}`;
+    } else {
+      title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
+    }
+
     if (isPending) {
-      title = isOutgoing ? `Pending to #${sanitize(tx.toWalletId)}` : `Pending from #${sanitize(tx.fromWalletId)}`;
+      if (isRequest) {
+        title = isOutgoing ? `Requested from #${sanitize(tx.toWalletId)}` : `Requested by #${sanitize(tx.fromWalletId)}`;
+      } else {
+        title = isOutgoing ? `Pending to #${sanitize(tx.toWalletId)}` : `Pending from #${sanitize(tx.fromWalletId)}`;
+      }
     }
 
     const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
@@ -823,6 +837,60 @@
     `;
   }
 
+  function updatePendingSectionUI() {
+    const sectionEl = document.getElementById('pending-section');
+    const listEl = document.getElementById('pending-list');
+
+    const transfers = pendingTransfersData || {};
+    const requests = pendingRequestsData || {};
+
+    const transferKeys = Object.keys(transfers);
+    const requestKeys = Object.keys(requests);
+
+    if (transferKeys.length === 0 && requestKeys.length === 0) {
+      sectionEl.style.display = 'none';
+      listEl.innerHTML = '';
+      return;
+    }
+
+    sectionEl.style.display = 'block';
+    let combinedHTML = '';
+
+    requestKeys.forEach(reqKey => {
+      const req = requests[reqKey];
+      combinedHTML += `
+        <div class="tx-item" id="req-item-${reqKey}">
+          <div class="tx-info">
+            <span class="tx-title">Request from #${sanitize(req.fromWalletId)}</span>
+            <span class="tx-date">${req.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button style="padding:8px 14px; font-size:0.8rem; background:var(--primary);" onclick="handleRequestSend('${reqKey}', '${req.fromUid}', '${req.fromWalletId}', ${req.amount}, '${req.txKey || ''}')">Send</button>
+            <button style="padding:8px 14px; font-size:0.8rem; background:var(--surface-subtle); color:var(--text-main); box-shadow:none;" onclick="declineRequest('${reqKey}', '${req.txKey || ''}')">Decline</button>
+          </div>
+        </div>
+      `;
+    });
+
+    transferKeys.forEach(txKey => {
+      const tx = transfers[txKey];
+      combinedHTML += `
+        <div class="tx-item" id="pending-item-${txKey}">
+          <div class="tx-info">
+            <span class="tx-title">Incoming transfer from #${sanitize(tx.fromWalletId)}</span>
+            <span class="tx-date">${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button style="padding:8px 14px; font-size:0.8rem; background:var(--incoming);" onclick="resolvePending('${txKey}', true)">Accept</button>
+            <button style="padding:8px 14px; font-size:0.8rem; background:var(--surface-subtle); color:var(--text-main); box-shadow:none;" onclick="resolvePending('${txKey}', false)">Decline</button>
+          </div>
+        </div>
+      `;
+    });
+
+    listEl.innerHTML = combinedHTML;
+  }
+
   function attachDashboardListeners() {
     const uid = window.currentUser.uid;
     
@@ -832,34 +900,13 @@
     });
 
     onValue(ref(db, `requests/${uid}`), snap => {
-      const data = snap.val();
-      const sectionEl = document.getElementById('requests-section');
-      const listEl = document.getElementById('requests-list');
-      
-      if (!data || Object.keys(data).length === 0) {
-        sectionEl.style.display = 'none';
-        listEl.innerHTML = '';
-        return;
-      }
-      
-      sectionEl.style.display = 'block';
-      listEl.innerHTML = '';
-      
-      Object.keys(data).forEach(reqKey => {
-        const req = data[reqKey];
-        listEl.innerHTML += `
-          <div class="tx-item" id="req-item-${reqKey}">
-            <div class="tx-info">
-              <span class="tx-title">Requested by #${sanitize(req.fromWalletId)}</span>
-              <span class="tx-date">${req.amount} $VLC</span>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <button style="padding:8px 14px; font-size:0.8rem; background:var(--primary);" onclick="handleRequestSend('${reqKey}', '${req.fromUid}', '${req.fromWalletId}', ${req.amount})">Send</button>
-              <button style="padding:8px 14px; font-size:0.8rem; background:var(--surface-subtle); color:var(--text-main); box-shadow:none;" onclick="declineRequest('${reqKey}')">Decline</button>
-            </div>
-          </div>
-        `;
-      });
+      pendingRequestsData = snap.val() || {};
+      updatePendingSectionUI();
+    });
+
+    onValue(ref(db, `pendingTransfers/${uid}`), snap => {
+      pendingTransfersData = snap.val() || {};
+      updatePendingSectionUI();
     });
 
     onValue(ref(db, `transactions`), snap => {
@@ -897,36 +944,6 @@
       if (showAllBtnContainer) {
         showAllBtnContainer.style.display = txs.length > 5 ? 'block' : 'none';
       }
-    });
-
-    onValue(ref(db, `pendingTransfers/${uid}`), snap => {
-      const data = snap.val();
-      const sectionEl = document.getElementById('pending-section');
-      const listEl = document.getElementById('pending-list');
-      
-      if (!data || Object.keys(data).length === 0) {
-        sectionEl.style.display = 'none';
-        listEl.innerHTML = '';
-        return;
-      }
-      
-      sectionEl.style.display = 'block';
-      listEl.innerHTML = "";
-      Object.keys(data).forEach(txKey => {
-        const tx = data[txKey];
-        listEl.innerHTML += `
-          <div class="tx-item" id="pending-item-${txKey}">
-            <div class="tx-info">
-              <span class="tx-title">Incoming from #${sanitize(tx.fromWalletId)}</span>
-              <span class="tx-date">${tx.amount} $VLC</span>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <button style="padding:8px 14px; font-size:0.8rem; background:var(--incoming);" onclick="resolvePending('${txKey}', true)">Accept</button>
-              <button style="padding:8px 14px; font-size:0.8rem; background:var(--surface-subtle); color:var(--text-main); box-shadow:none;" onclick="resolvePending('${txKey}', false)">Decline</button>
-            </div>
-          </div>
-        `;
-      });
     });
   }
 
@@ -1110,12 +1127,30 @@
       }
     } else {
       try {
-        await push(ref(db, `requests/${targetUserData.uid}`), {
+        const newTxRef = push(ref(db, 'transactions'));
+        const txKey = newTxRef.key;
+
+        const txData = {
+          fromUid: myUid,
+          fromWalletId: window.userProfile.walletId,
+          toUid: targetUserData.uid,
+          toWalletId: targetUserData.walletId,
+          amount: amt,
+          type: 'request',
+          status: 'pending',
+          timestamp: Date.now()
+        };
+
+        await set(newTxRef, txData);
+
+        await set(ref(db, `requests/${targetUserData.uid}/${txKey}`), {
           fromUid: myUid, 
           fromWalletId: window.userProfile.walletId,
           amount: amt, 
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          txKey: txKey
         });
+
         showActionSuccess(`Request for ${amt} $VLC sent.`);
       } catch (e) {
         errEl.innerText = "Request failed: " + e.message;
@@ -1140,7 +1175,7 @@
     }, 200);
   }
 
-  window.handleRequestSend = async (reqKey, requesterUid, requesterWalletId, amt) => {
+  window.handleRequestSend = async (reqKey, requesterUid, requesterWalletId, amt, txKey) => {
     if (processingRequests.has(reqKey)) return;
 
     const confirmed = confirm(`Are you sure you want to send ${amt} $VLC to #${requesterWalletId}?`);
@@ -1171,8 +1206,8 @@
       const targetPrefs = reqTargetSnap.exists() ? (reqTargetSnap.val().preferences || {}) : {};
 
       if (targetPrefs.depositMode === 'manual_accept') {
-        const newTxRef = push(ref(db, 'transactions'));
-        const txKey = newTxRef.key;
+        const newTransferRef = push(ref(db, 'transactions'));
+        const transferKey = newTransferRef.key;
 
         const txData = {
           fromUid: myUid,
@@ -1185,17 +1220,24 @@
           timestamp: Date.now()
         };
 
-        await set(newTxRef, txData);
-        await set(ref(db, `pendingTransfers/${requesterUid}/${txKey}`), txData);
+        await set(newTransferRef, txData);
+        await set(ref(db, `pendingTransfers/${requesterUid}/${transferKey}`), txData);
       } else {
         await runTransaction(ref(db, `balances/${requesterUid}`), (curr) => (curr || 0) + amt);
+      }
+
+      if (txKey) {
+        await update(ref(db, `transactions/${txKey}`), {
+          status: 'completed'
+        });
+      } else {
         await push(ref(db, 'transactions'), {
-          fromUid: myUid,
-          fromWalletId: window.userProfile.walletId,
-          toUid: requesterUid,
-          toWalletId: requesterWalletId,
+          fromUid: requesterUid,
+          fromWalletId: requesterWalletId,
+          toUid: myUid,
+          toWalletId: window.userProfile.walletId,
           amount: amt,
-          type: 'transfer',
+          type: 'request',
           status: 'completed',
           timestamp: Date.now()
         });
@@ -1210,9 +1252,14 @@
     }
   };
 
-  window.declineRequest = async (reqKey) => {
+  window.declineRequest = async (reqKey, txKey) => {
     const myUid = window.currentUser.uid;
     try {
+      if (txKey) {
+        await update(ref(db, `transactions/${txKey}`), {
+          status: 'declined'
+        });
+      }
       await remove(ref(db, `requests/${myUid}/${reqKey}`));
     } catch (e) {
       console.error("Failed to decline request:", e);
