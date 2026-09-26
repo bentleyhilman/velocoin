@@ -799,28 +799,36 @@
   function renderTxHTML(tx, uid) {
     const isOutgoing = tx.fromUid === uid;
     const isPending = tx.status === 'pending';
+    const isDeclined = tx.status === 'declined';
     const isRequest = tx.type === 'request';
     
-    let amtColorClass = isOutgoing ? "tx-out" : "tx-in";
+    let amtColorClass = isOutgoing ? "tx-in" : "tx-out";
+    if (!isRequest) {
+      amtColorClass = isOutgoing ? "tx-out" : "tx-in";
+    }
     if (isPending) amtColorClass = "tx-pending";
 
-    let sign = isOutgoing ? "-" : "+";
-    if (isPending && isRequest) {
-      sign = isOutgoing ? "+" : "-"; 
+    let sign = isOutgoing ? "+" : "-";
+    if (!isRequest) {
+      sign = isOutgoing ? "-" : "+";
     }
 
     let title = "";
     if (isRequest) {
-      title = isOutgoing ? `Requested from #${sanitize(tx.toWalletId)}` : `Requested by #${sanitize(tx.fromWalletId)}`;
-    } else {
-      title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
-    }
-
-    if (isPending) {
-      if (isRequest) {
+      if (isPending) {
         title = isOutgoing ? `Requested from #${sanitize(tx.toWalletId)}` : `Requested by #${sanitize(tx.fromWalletId)}`;
+      } else if (isDeclined) {
+        title = isOutgoing ? `Request to #${sanitize(tx.toWalletId)} declined` : `Request from #${sanitize(tx.fromWalletId)} declined`;
       } else {
+        title = isOutgoing ? `Received request payment from #${sanitize(tx.toWalletId)}` : `Paid request to #${sanitize(tx.fromWalletId)}`;
+      }
+    } else {
+      if (isPending) {
         title = isOutgoing ? `Pending to #${sanitize(tx.toWalletId)}` : `Pending from #${sanitize(tx.fromWalletId)}`;
+      } else if (isDeclined) {
+        title = isOutgoing ? `Transfer to #${sanitize(tx.toWalletId)} declined` : `Transfer from #${sanitize(tx.fromWalletId)} declined`;
+      } else {
+        title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
       }
     }
 
@@ -830,7 +838,7 @@
       <div class="tx-item">
         <div class="tx-info">
           <span class="tx-title">${title}</span>
-          <span class="tx-date">${dateStr} ${isPending ? '• Pending Acceptance' : ''}</span>
+          <span class="tx-date">${dateStr} ${isPending ? '• Pending' : (isDeclined ? '• Declined' : '• Approved')}</span>
         </div>
         <span class="tx-amt ${amtColorClass}">${sign}${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
       </div>
@@ -924,7 +932,7 @@
       
       const txs = Object.entries(data)
         .map(([key, val]) => ({ txKey: key, ...val }))
-        .filter(t => (t.fromUid === uid || t.toUid === uid) && (t.status === 'completed' || t.status === 'pending'));
+        .filter(t => (t.fromUid === uid || t.toUid === uid));
         
       txs.sort((a,b) => b.timestamp - a.timestamp);
       
@@ -1228,16 +1236,6 @@
 
       if (txKey) {
         await update(ref(db, `transactions/${txKey}`), {
-          status: 'completed'
-        });
-      } else {
-        await push(ref(db, 'transactions'), {
-          fromUid: requesterUid,
-          fromWalletId: requesterWalletId,
-          toUid: myUid,
-          toWalletId: window.userProfile.walletId,
-          amount: amt,
-          type: 'request',
           status: 'completed',
           timestamp: Date.now()
         });
@@ -1257,7 +1255,8 @@
     try {
       if (txKey) {
         await update(ref(db, `transactions/${txKey}`), {
-          status: 'declined'
+          status: 'declined',
+          timestamp: Date.now()
         });
       }
       await remove(ref(db, `requests/${myUid}/${reqKey}`));
@@ -1287,12 +1286,14 @@
       if (isAccept) {
         await runTransaction(ref(db, `balances/${uid}`), (curr) => (curr || 0) + txData.amount);
         await update(ref(db, `transactions/${txKey}`), {
-          status: 'completed'
+          status: 'completed',
+          timestamp: Date.now()
         });
       } else {
         await runTransaction(ref(db, `balances/${txData.fromUid}`), (curr) => (curr || 0) + txData.amount);
         await update(ref(db, `transactions/${txKey}`), {
-          status: 'declined'
+          status: 'declined',
+          timestamp: Date.now()
         });
       }
     } catch(e) {
