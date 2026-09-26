@@ -336,14 +336,6 @@
         </select>
       </div>
 
-      <div id="ob-step-5c" class="step-container">
-        <label style="color:var(--text-muted); font-size:0.85rem; font-weight:600; margin-bottom:12px; display:block;">Deposit Preference</label>
-        <select id="ob-pref-deposit" data-enter="nextOnboardingStep">
-          <option value="auto_deposit">Auto-Deposit (Instant)</option>
-          <option value="manual_accept">Manually Accept Transfers</option>
-        </select>
-      </div>
-
       <div id="ob-error" class="status-msg status-error"></div>
       <button id="ob-next-btn" onclick="nextOnboardingStep()" style="margin-top:16px;">Continue</button>
     </div>
@@ -378,9 +370,9 @@
           <div style="display:flex; align-items:baseline;"><span class="balance-value" id="dash-balance">0.00</span><span class="balance-currency">$VLC</span></div>
         </div>
 
-        <!-- UNIFIED PENDING TRANSACTIONS SECTION -->
+        <!-- UNIFIED PENDING TRANSACTIONS SECTION (FOR MONEY REQUESTS) -->
         <div id="pending-section" class="tx-feed" style="display:none;">
-          <h2 style="font-size:1.05rem; margin-bottom:16px; color:var(--pending);">Pending Transactions</h2>
+          <h2 style="font-size:1.05rem; margin-bottom:16px; color:var(--pending);">Pending Requests</h2>
           <div id="pending-list"></div>
         </div>
 
@@ -487,12 +479,6 @@
 
       <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Approved IDs (comma separated)</label>
       <input type="text" id="set-approved" placeholder="e.g. 12, 455, 902" data-enter="saveSettingsAndExit">
-
-      <label style="color:var(--text-muted); font-size:0.8rem; font-weight:600; display:block; margin-bottom:6px;">Deposit Mode</label>
-      <select id="set-deposit">
-        <option value="auto_deposit">Auto-Deposit (Instant)</option>
-        <option value="manual_accept">Manually Accept Transfers</option>
-      </select>
       
       <div id="set-status" class="status-msg"></div>
 
@@ -539,10 +525,8 @@
   window.currentUser = null;
   window.userProfile = null;
   let isCreatingAccount = false;
-  const processingPending = new Set();
   const processingRequests = new Set();
 
-  let pendingTransfersData = {};
   let pendingRequestsData = {};
 
   const sanitize = (str) => String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -626,8 +610,8 @@
   window.executeLogout = () => signOut(auth);
 
   let obStep = 1;
-  const totalObSteps = 7;
-  const stepMap = ['ob-step-1', 'ob-step-2', 'ob-step-3', 'ob-step-4', 'ob-step-5a', 'ob-step-5b', 'ob-step-5c'];
+  const totalObSteps = 6;
+  const stepMap = ['ob-step-1', 'ob-step-2', 'ob-step-3', 'ob-step-4', 'ob-step-5a', 'ob-step-5b'];
 
   window.nextOnboardingStep = async () => {
     const errEl = document.getElementById('ob-error');
@@ -753,7 +737,6 @@
     
     const prefReq = document.getElementById('ob-pref-request').value;
     const prefSend = document.getElementById('ob-pref-send').value;
-    const prefDep = document.getElementById('ob-pref-deposit').value;
 
     document.getElementById('ob-next-btn').innerText = "Setting Up Vault...";
 
@@ -767,7 +750,7 @@
 
       const profileData = {
         email, name, walletId: wid,
-        preferences: { sendRequests: prefReq, sendMoney: prefSend, depositMode: prefDep, approvedIds: "" }
+        preferences: { sendRequests: prefReq, sendMoney: prefSend, approvedIds: "" }
       };
 
       await set(ref(db, `users/${uid}`), profileData);
@@ -823,13 +806,7 @@
         title = isOutgoing ? `Received request payment from #${sanitize(tx.toWalletId)}` : `Paid request to #${sanitize(tx.fromWalletId)}`;
       }
     } else {
-      if (isPending) {
-        title = isOutgoing ? `Pending to #${sanitize(tx.toWalletId)}` : `Pending from #${sanitize(tx.fromWalletId)}`;
-      } else if (isDeclined) {
-        title = isOutgoing ? `Transfer to #${sanitize(tx.toWalletId)} declined` : `Transfer from #${sanitize(tx.fromWalletId)} declined`;
-      } else {
-        title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
-      }
+      title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
     }
 
     const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
@@ -838,7 +815,7 @@
       <div class="tx-item">
         <div class="tx-info">
           <span class="tx-title">${title}</span>
-          <span class="tx-date">${dateStr} ${isPending ? '• Pending' : (isDeclined ? '• Declined' : '• Approved')}</span>
+          <span class="tx-date">${dateStr} ${isPending ? '• Pending' : (isDeclined ? '• Declined' : '• Completed')}</span>
         </div>
         <span class="tx-amt ${amtColorClass}">${sign}${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
       </div>
@@ -849,13 +826,10 @@
     const sectionEl = document.getElementById('pending-section');
     const listEl = document.getElementById('pending-list');
 
-    const transfers = pendingTransfersData || {};
     const requests = pendingRequestsData || {};
-
-    const transferKeys = Object.keys(transfers);
     const requestKeys = Object.keys(requests);
 
-    if (transferKeys.length === 0 && requestKeys.length === 0) {
+    if (requestKeys.length === 0) {
       sectionEl.style.display = 'none';
       listEl.innerHTML = '';
       return;
@@ -880,22 +854,6 @@
       `;
     });
 
-    transferKeys.forEach(txKey => {
-      const tx = transfers[txKey];
-      combinedHTML += `
-        <div class="tx-item" id="pending-item-${txKey}">
-          <div class="tx-info">
-            <span class="tx-title">Incoming transfer from #${sanitize(tx.fromWalletId)}</span>
-            <span class="tx-date">${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button style="padding:8px 14px; font-size:0.8rem; background:var(--incoming);" onclick="resolvePending('${txKey}', true)">Accept</button>
-            <button style="padding:8px 14px; font-size:0.8rem; background:var(--surface-subtle); color:var(--text-main); box-shadow:none;" onclick="resolvePending('${txKey}', false)">Decline</button>
-          </div>
-        </div>
-      `;
-    });
-
     listEl.innerHTML = combinedHTML;
   }
 
@@ -909,11 +867,6 @@
 
     onValue(ref(db, `requests/${uid}`), snap => {
       pendingRequestsData = snap.val() || {};
-      updatePendingSectionUI();
-    });
-
-    onValue(ref(db, `pendingTransfers/${uid}`), snap => {
-      pendingTransfersData = snap.val() || {};
       updatePendingSectionUI();
     });
 
@@ -959,7 +912,6 @@
     document.getElementById('set-name').value = window.userProfile.name;
     document.getElementById('set-req').value = window.userProfile.preferences.sendRequests;
     document.getElementById('set-send').value = window.userProfile.preferences.sendMoney;
-    document.getElementById('set-deposit').value = window.userProfile.preferences.depositMode;
     document.getElementById('set-approved').value = window.userProfile.preferences.approvedIds || "";
     document.getElementById('set-status').innerText = "";
     switchView('view-settings');
@@ -971,7 +923,6 @@
     const prefs = {
       sendRequests: document.getElementById('set-req').value,
       sendMoney: document.getElementById('set-send').value,
-      depositMode: document.getElementById('set-deposit').value,
       approvedIds: document.getElementById('set-approved').value.replace(/\s+/g, '')
     };
     
@@ -1094,41 +1045,20 @@
 
         if (!txSuccess) return errEl.innerText = "Insufficient balance.";
 
-        if (targetUserData.preferences && targetUserData.preferences.depositMode === 'manual_accept') {
-          const newTxRef = push(ref(db, 'transactions'));
-          const txKey = newTxRef.key;
-
-          const txData = {
-            fromUid: myUid,
-            fromWalletId: window.userProfile.walletId,
-            toUid: targetUserData.uid,
-            toWalletId: targetUserData.walletId,
-            amount: amt,
-            type: 'transfer',
-            status: 'pending',
-            timestamp: Date.now()
-          };
-
-          await set(newTxRef, txData);
-          await set(ref(db, `pendingTransfers/${targetUserData.uid}/${txKey}`), txData);
-
-          showActionSuccess(`Sent ${amt} $VLC. Awaiting recipient acceptance.`);
-        } else {
-          await runTransaction(ref(db, `balances/${targetUserData.uid}`), (curr) => (curr || 0) + amt);
-          
-          await push(ref(db, 'transactions'), {
-            fromUid: myUid,
-            fromWalletId: window.userProfile.walletId,
-            toUid: targetUserData.uid,
-            toWalletId: targetUserData.walletId,
-            amount: amt,
-            type: 'transfer',
-            status: 'completed',
-            timestamp: Date.now()
-          });
-          
-          showActionSuccess(`Successfully sent ${amt} $VLC!`);
-        }
+        await runTransaction(ref(db, `balances/${targetUserData.uid}`), (curr) => (curr || 0) + amt);
+        
+        await push(ref(db, 'transactions'), {
+          fromUid: myUid,
+          fromWalletId: window.userProfile.walletId,
+          toUid: targetUserData.uid,
+          toWalletId: targetUserData.walletId,
+          amount: amt,
+          type: 'transfer',
+          status: 'completed',
+          timestamp: Date.now()
+        });
+        
+        showActionSuccess(`Successfully sent ${amt} $VLC!`);
 
       } catch(e) {
         errEl.innerText = "Transfer failed: " + e.message;
@@ -1210,29 +1140,7 @@
         return;
       }
 
-      const reqTargetSnap = await get(ref(db, `users/${requesterUid}`));
-      const targetPrefs = reqTargetSnap.exists() ? (reqTargetSnap.val().preferences || {}) : {};
-
-      if (targetPrefs.depositMode === 'manual_accept') {
-        const newTransferRef = push(ref(db, 'transactions'));
-        const transferKey = newTransferRef.key;
-
-        const txData = {
-          fromUid: myUid,
-          fromWalletId: window.userProfile.walletId,
-          toUid: requesterUid,
-          toWalletId: requesterWalletId,
-          amount: amt,
-          type: 'transfer',
-          status: 'pending',
-          timestamp: Date.now()
-        };
-
-        await set(newTransferRef, txData);
-        await set(ref(db, `pendingTransfers/${requesterUid}/${transferKey}`), txData);
-      } else {
-        await runTransaction(ref(db, `balances/${requesterUid}`), (curr) => (curr || 0) + amt);
-      }
+      await runTransaction(ref(db, `balances/${requesterUid}`), (curr) => (curr || 0) + amt);
 
       if (txKey) {
         await update(ref(db, `transactions/${txKey}`), {
@@ -1262,44 +1170,6 @@
       await remove(ref(db, `requests/${myUid}/${reqKey}`));
     } catch (e) {
       console.error("Failed to decline request:", e);
-    }
-  };
-
-  window.resolvePending = async (txKey, isAccept) => {
-    if (processingPending.has(txKey)) return;
-    processingPending.add(txKey);
-
-    const uid = window.currentUser.uid;
-    const pendingRef = ref(db, `pendingTransfers/${uid}/${txKey}`);
-    
-    try {
-      const snap = await get(pendingRef);
-      if (!snap.exists()) {
-        processingPending.delete(txKey);
-        return;
-      }
-      
-      const txData = snap.val();
-
-      await remove(pendingRef);
-
-      if (isAccept) {
-        await runTransaction(ref(db, `balances/${uid}`), (curr) => (curr || 0) + txData.amount);
-        await update(ref(db, `transactions/${txKey}`), {
-          status: 'completed',
-          timestamp: Date.now()
-        });
-      } else {
-        await runTransaction(ref(db, `balances/${txData.fromUid}`), (curr) => (curr || 0) + txData.amount);
-        await update(ref(db, `transactions/${txKey}`), {
-          status: 'declined',
-          timestamp: Date.now()
-        });
-      }
-    } catch(e) {
-      console.error("Failed resolving pending transfer:", e);
-    } finally {
-      processingPending.delete(txKey);
     }
   };
 </script>
