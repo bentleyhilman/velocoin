@@ -393,6 +393,9 @@
           <div id="tx-list">
             <div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>
           </div>
+          <div id="show-all-container" style="margin-top: 12px; display: none;">
+            <button class="btn-text" onclick="switchView('view-history')" style="padding: 0;">Show Full History</button>
+          </div>
         </div>
       </div>
 
@@ -408,6 +411,21 @@
         <button class="btn-text" onclick="loadSettings()">Account Settings</button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- FULL HISTORY VIEW -->
+  <div id="view-history" class="view centered-screen">
+    <div class="minimal-header">
+      <button class="back-btn" onclick="switchView('view-dashboard')">← Back</button>
+      <span style="color:var(--text-muted); font-size:0.85rem; font-weight:600;">Activity History</span>
+    </div>
+
+    <div style="text-align:left; width:100%;">
+      <h2 style="font-size:1.5rem; margin-bottom:24px;">All Activity</h2>
+      <div id="full-tx-list" class="tx-feed">
+        <div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>
+      </div>
     </div>
   </div>
 
@@ -779,6 +797,32 @@
     }
   }
 
+  function renderTxHTML(tx, uid) {
+    const isOutgoing = tx.fromUid === uid;
+    const isPending = tx.status === 'pending';
+    
+    let amtColorClass = isOutgoing ? "tx-out" : "tx-in";
+    if (isPending) amtColorClass = "tx-pending";
+
+    const sign = isOutgoing ? "-" : "+";
+    let title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
+    if (isPending) {
+      title = isOutgoing ? `Pending to #${sanitize(tx.toWalletId)}` : `Pending from #${sanitize(tx.fromWalletId)}`;
+    }
+
+    const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+
+    return `
+      <div class="tx-item">
+        <div class="tx-info">
+          <span class="tx-title">${title}</span>
+          <span class="tx-date">${dateStr} ${isPending ? '• Pending Acceptance' : ''}</span>
+        </div>
+        <span class="tx-amt ${amtColorClass}">${sign}${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
+      </div>
+    `;
+  }
+
   function attachDashboardListeners() {
     const uid = window.currentUser.uid;
     
@@ -821,8 +865,13 @@
     onValue(ref(db, `transactions`), snap => {
       const data = snap.val();
       const listEl = document.getElementById('tx-list');
+      const fullListEl = document.getElementById('full-tx-list');
+      const showAllBtnContainer = document.getElementById('show-all-container');
+
       if (!data) {
         listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
+        if (fullListEl) fullListEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
+        if (showAllBtnContainer) showAllBtnContainer.style.display = 'none';
         return;
       }
       
@@ -834,35 +883,20 @@
       
       if (txs.length === 0) {
         listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
+        if (fullListEl) fullListEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
+        if (showAllBtnContainer) showAllBtnContainer.style.display = 'none';
         return;
       }
 
-      listEl.innerHTML = "";
-      txs.slice(0, 15).forEach(tx => {
-        const isOutgoing = tx.fromUid === uid;
-        const isPending = tx.status === 'pending';
-        
-        let amtColorClass = isOutgoing ? "tx-out" : "tx-in";
-        if (isPending) amtColorClass = "tx-pending";
+      listEl.innerHTML = txs.slice(0, 5).map(tx => renderTxHTML(tx, uid)).join('');
+      
+      if (fullListEl) {
+        fullListEl.innerHTML = txs.map(tx => renderTxHTML(tx, uid)).join('');
+      }
 
-        const sign = isOutgoing ? "-" : "+";
-        let title = isOutgoing ? `Sent to #${sanitize(tx.toWalletId)}` : `Received from #${sanitize(tx.fromWalletId)}`;
-        if (isPending) {
-          title = isOutgoing ? `Pending to #${sanitize(tx.toWalletId)}` : `Pending from #${sanitize(tx.fromWalletId)}`;
-        }
-
-        const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-
-        listEl.innerHTML += `
-          <div class="tx-item">
-            <div class="tx-info">
-              <span class="tx-title">${title}</span>
-              <span class="tx-date">${dateStr} ${isPending ? '• Pending Acceptance' : ''}</span>
-            </div>
-            <span class="tx-amt ${amtColorClass}">${sign}${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
-          </div>
-        `;
-      });
+      if (showAllBtnContainer) {
+        showAllBtnContainer.style.display = txs.length > 5 ? 'block' : 'none';
+      }
     });
 
     onValue(ref(db, `pendingTransfers/${uid}`), snap => {
