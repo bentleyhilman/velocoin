@@ -527,6 +527,7 @@
   window.currentUser = null;
   window.userProfile = null;
   let isCreatingAccount = false;
+  let heartbeatInterval = null;
   const processingRequests = new Set();
 
   let pendingRequestsData = {};
@@ -572,15 +573,47 @@
     document.querySelectorAll('.status-msg').forEach(el => el.innerText = '');
   };
 
+  async function updateDatabaseLastLoginTime() {
+    if (!window.currentUser) return;
+    const now = Date.now();
+    try {
+      await update(ref(db, `users/${window.currentUser.uid}`), { lastLoginTime: now });
+      if (window.userProfile) {
+        window.userProfile.lastLoginTime = now;
+      }
+    } catch (e) {
+      console.warn("Failed to update lastLoginTime in database:", e);
+    }
+  }
+
+  function startOnlineHeartbeat() {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    updateDatabaseLastLoginTime();
+    
+    heartbeatInterval = setInterval(() => {
+      updateDatabaseLastLoginTime();
+    }, 10000);
+  }
+
+  function stopOnlineHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  }
+
   onAuthStateChanged(auth, async (user) => {
     if (isCreatingAccount) return;
 
     if (user) {
       window.currentUser = user;
-
+      
       const snap = await get(ref(db, `users/${user.uid}`));
       if (snap.exists()) {
         window.userProfile = snap.val();
+        
+        startOnlineHeartbeat();
+
         const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
         document.getElementById('dash-greeting').innerText = `${randomGreeting} ${sanitize(window.userProfile.name)}`;
         document.getElementById('dash-wallet-id').innerText = `#${sanitize(window.userProfile.walletId)}`;
@@ -591,6 +624,7 @@
         switchView('view-onboarding');
       }
     } else {
+      stopOnlineHeartbeat();
       window.currentUser = null;
       window.userProfile = null;
       switchView('view-landing');
@@ -609,7 +643,10 @@
     }
   };
 
-  window.executeLogout = () => signOut(auth);
+  window.executeLogout = () => {
+    stopOnlineHeartbeat();
+    signOut(auth);
+  };
 
   let obStep = 1;
   const totalObSteps = 6;
@@ -752,6 +789,7 @@
 
       const profileData = {
         email, name, walletId: wid,
+        lastLoginTime: Date.now(),
         preferences: { sendRequests: prefReq, sendMoney: prefSend, approvedIds: "" }
       };
 
@@ -765,6 +803,8 @@
 
       window.currentUser = activeUser;
       window.userProfile = profileData;
+
+      startOnlineHeartbeat();
 
       document.getElementById('dash-greeting').innerText = `${greetings[0]} ${sanitize(profileData.name)}`;
       document.getElementById('dash-wallet-id').innerText = `#${sanitize(profileData.walletId)}`;
@@ -781,7 +821,7 @@
     }
   }
 
-  function renderTxHTML(tx, uid, lastLoginTime = 0) {
+  function renderTxHTML(tx, uid) {
     const isOutgoing = tx.fromUid === uid;
     const isPending = tx.status === 'pending';
     const isDeclined = tx.status === 'declined';
@@ -814,26 +854,10 @@
 
     const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
 
-    const isUnread = tx.timestamp > lastLoginTime;
-    const isRecentSuccess = tx.status === 'completed' && tx.timestamp > (Date.now() - 3600000);
-    
-    let badgeHTML = '';
-    if (isPending) {
-       badgeHTML = `<span style="background:var(--pending); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Pending</span>`;
-    } else if (isDeclined) {
-       badgeHTML = `<span style="background:var(--declined); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Declined</span>`;
-    } else if (isUnread) {
-       badgeHTML = `<span style="background:var(--primary-light); color:var(--primary); padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">New</span>`;
-    } else if (isRecentSuccess) {
-       badgeHTML = `<span style="background:#dcfce7; color:#166534; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Completed</span>`;
-    } else if (tx.status === 'completed') {
-       badgeHTML = `<span style="background:var(--surface-subtle); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Completed</span>`;
-    }
-
     return `
       <div class="tx-item">
         <div class="tx-info">
-          <span class="tx-title">${title}${badgeHTML}</span>
+          <span class="tx-title">${title}</span>
           <span class="tx-date">${dateStr}</span>
         </div>
         <span class="tx-amt ${amtColorClass}">${sign}${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
@@ -889,14 +913,17 @@
       updatePendingSectionUI();
     });
 
+    onValue(ref(db, `users/${uid}/lastLoginTime`), snap => {
+      if (window.userProfile) {
+        window.userProfile.lastLoginTime = snap.val() || Date.now();
+      }
+    });
+
     onValue(ref(db, `transactions`), snap => {
       const data = snap.val();
       const listEl = document.getElementById('tx-list');
       const fullListEl = document.getElementById('full-tx-list');
       const showAllBtnContainer = document.getElementById('show-all-container');
-
-      const lastLoginStr = window.currentUser?.metadata?.lastSignInTime;
-      const lastLoginTime = lastLoginStr ? new Date(lastLoginStr).getTime() : 0;
 
       if (!data) {
         listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No recent updates or pending requests.</div>`;
@@ -918,11 +945,12 @@
         return;
       }
 
+      const dbLastLoginTime = window.userProfile?.lastLoginTime || Date.now();
       const oneHourAgo = Date.now() - (60 * 60 * 1000);
       
       const activeTxs = txs.filter(tx => {
         const isPending = tx.status === 'pending';
-        const isUnread = tx.timestamp > lastLoginTime;
+        const isUnread = tx.timestamp > dbLastLoginTime;
         const isRecentSuccess = tx.status === 'completed' && tx.timestamp > oneHourAgo;
 
         return isPending || isUnread || isRecentSuccess;
@@ -931,11 +959,11 @@
       if (activeTxs.length === 0) {
         listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No recent updates or pending requests.</div>`;
       } else {
-        listEl.innerHTML = activeTxs.map(tx => renderTxHTML(tx, uid, lastLoginTime)).join('');
+        listEl.innerHTML = activeTxs.map(tx => renderTxHTML(tx, uid)).join('');
       }
       
       if (fullListEl) {
-        fullListEl.innerHTML = txs.map(tx => renderTxHTML(tx, uid, lastLoginTime)).join('');
+        fullListEl.innerHTML = txs.map(tx => renderTxHTML(tx, uid)).join('');
       }
 
       if (showAllBtnContainer) {
