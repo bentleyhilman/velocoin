@@ -28,6 +28,7 @@
       --incoming: #10b981;
       --outgoing: #ef4444;
       --pending: #d97706;
+      --declined: #94a3b8;
       --font-family: 'Plus Jakarta Sans', sans-serif;
     }
 
@@ -226,6 +227,7 @@
     .tx-in { color: var(--incoming); }
     .tx-out { color: var(--outgoing); }
     .tx-pending { color: var(--pending); }
+    .tx-declined { color: var(--declined); }
 
     .action-panel { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
     .wallet-id-display {
@@ -790,6 +792,7 @@
       amtColorClass = isOutgoing ? "tx-out" : "tx-in";
     }
     if (isPending) amtColorClass = "tx-pending";
+    if (isDeclined) amtColorClass = "tx-declined";
 
     let sign = isOutgoing ? "+" : "-";
     if (!isRequest) {
