@@ -260,6 +260,134 @@
       box-shadow: none;
     }
 
+    /* PREMIUM LOADING SCREEN STYLES */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background-color: var(--bg-color);
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  visibility 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity, transform, visibility;
+      pointer-events: all;
+    }
+
+    #loading-screen.dismissing {
+      opacity: 0;
+      transform: scale(1.02);
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loading-center-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    .spinner-wrapper {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loading-spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(79, 70, 229, 0.12);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      box-shadow: 0 0 15px rgba(79, 70, 229, 0.08);
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Completed state checkmark ring */
+    .spinner-wrapper.completed .loading-spinner {
+      animation: none;
+      border-color: var(--incoming);
+      background: rgba(16, 185, 129, 0.08);
+      transform: scale(1.08);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+
+    .checkmark-icon {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      color: var(--incoming);
+    }
+
+    .spinner-wrapper.completed .checkmark-icon {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .loading-text {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: -0.2px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .loading-footer-brand {
+      position: absolute;
+      bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0.85;
+    }
+
+    .loading-footer-logo {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .loading-footer-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.3px;
+    }
+
+    /* Respect prefers-reduced-motion */
+    @media (prefers-reduced-motion: reduce) {
+      #loading-screen {
+        transition: opacity 0.2s ease, visibility 0.2s ease !important;
+        transform: none !important;
+      }
+      .loading-spinner {
+        animation-duration: 1.5s !important;
+      }
+      .checkmark-icon {
+        transition: opacity 0.15s ease !important;
+      }
+    }
+
     @media (max-width: 850px) {
       .dashboard-grid { display: flex; flex-direction: column; }
       .action-panel { width: 100%; margin-top: 16px; }
@@ -269,10 +397,28 @@
 </head>
 <body>
 
+<!-- FULLSCREEN PREMIUM LOADING OVERLAY -->
+<div id="loading-screen" aria-label="Loading site content" role="status">
+  <div class="loading-center-content">
+    <div class="spinner-wrapper" id="loading-spinner-wrapper">
+      <div class="loading-spinner"></div>
+      <svg class="checkmark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+    <div class="loading-text" id="loading-status-text">Loading...</div>
+  </div>
+
+  <div class="loading-footer-brand">
+    <img src="logo.png" alt="Velocoin Logo" class="loading-footer-logo">
+    <span class="loading-footer-name">Velocoin</span>
+  </div>
+</div>
+
 <div id="app-container">
 
   <!-- LANDING VIEW -->
-  <div id="view-landing" class="view active centered-screen">
+  <div id="view-landing" class="view centered-screen">
     <div style="display: flex; flex-direction: column; align-items: center;">
       <img src="logo.png" alt="Velocoin Logo" class="app-logo-landing">
       <h1 style="margin-bottom: 8px;">Velocoin</h1>
@@ -532,6 +678,48 @@
 
   let pendingRequestsData = {};
 
+  // Loading Screen Management
+  let isLoadingFinished = false;
+  const loadingStartTime = Date.now();
+
+  function dismissLoadingScreen() {
+    if (isLoadingFinished) return;
+    isLoadingFinished = true;
+
+    const minDisplayDuration = 300;
+    const elapsedTime = Date.now() - loadingStartTime;
+    const delay = Math.max(0, minDisplayDuration - elapsedTime);
+
+    setTimeout(() => {
+      const wrapper = document.getElementById('loading-spinner-wrapper');
+      const text = document.getElementById('loading-status-text');
+      const screen = document.getElementById('loading-screen');
+
+      if (!wrapper || !screen) return;
+
+      // Stage 1: Checkmark completion animation
+      wrapper.classList.add('completed');
+      if (text) text.style.opacity = '0';
+
+      // Stage 2: Fade & scale out the screen smoothly
+      setTimeout(() => {
+        screen.classList.add('dismissing');
+
+        // Clean up DOM after animation completes
+        setTimeout(() => {
+          screen.style.display = 'none';
+        }, 550);
+      }, 350);
+    }, delay);
+  }
+
+  // Safety fallback: ensure loading screen dismisses even on network timeout
+  setTimeout(() => {
+    if (!isLoadingFinished) {
+      dismissLoadingScreen();
+    }
+  }, 7000);
+
   const sanitize = (str) => String(str).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 
   const greetings = [
@@ -608,26 +796,34 @@
     if (user) {
       window.currentUser = user;
       
-      const snap = await get(ref(db, `users/${user.uid}`));
-      if (snap.exists()) {
-        window.userProfile = snap.val();
-        
-        startOnlineHeartbeat();
+      try {
+        const snap = await get(ref(db, `users/${user.uid}`));
+        if (snap.exists()) {
+          window.userProfile = snap.val();
+          
+          startOnlineHeartbeat();
 
-        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-        document.getElementById('dash-greeting').innerText = `${randomGreeting} ${sanitize(window.userProfile.name)}`;
-        document.getElementById('dash-wallet-id').innerText = `#${sanitize(window.userProfile.walletId)}`;
-        
-        attachDashboardListeners();
-        switchView('view-dashboard');
-      } else {
-        switchView('view-onboarding');
+          const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+          document.getElementById('dash-greeting').innerText = `${randomGreeting} ${sanitize(window.userProfile.name)}`;
+          document.getElementById('dash-wallet-id').innerText = `#${sanitize(window.userProfile.walletId)}`;
+          
+          attachDashboardListeners();
+          switchView('view-dashboard');
+        } else {
+          switchView('view-onboarding');
+        }
+      } catch (e) {
+        console.error("Error fetching user profile:", e);
+        switchView('view-landing');
+      } finally {
+        dismissLoadingScreen();
       }
     } else {
       stopOnlineHeartbeat();
       window.currentUser = null;
       window.userProfile = null;
       switchView('view-landing');
+      dismissLoadingScreen();
     }
   });
 
