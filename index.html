@@ -220,7 +220,7 @@
     }
     .tx-item:last-child { border-bottom: none; }
     .tx-info { display: flex; flex-direction: column; gap: 4px; }
-    .tx-title { font-weight: 600; color: var(--text-main); font-size: 0.95rem; }
+    .tx-title { font-weight: 600; color: var(--text-main); font-size: 0.95rem; display: flex; align-items: center; flex-wrap: wrap; }
     .tx-date { font-size: 0.8rem; color: var(--text-muted); }
     
     .tx-amt { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.3px; }
@@ -381,7 +381,7 @@
         <div class="tx-feed">
           <h2 style="font-size:1.05rem; margin-bottom:16px;">Activity</h2>
           <div id="tx-list">
-            <div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>
+            <div style="color:var(--text-muted); padding: 12px 0;">No recent updates or pending requests.</div>
           </div>
           <div id="show-all-container" style="margin-top: 12px; display: none;">
             <button class="btn-text" onclick="switchView('view-history')" style="padding: 0;">Show Full History</button>
@@ -781,7 +781,7 @@
     }
   }
 
-  function renderTxHTML(tx, uid) {
+  function renderTxHTML(tx, uid, lastLoginTime = 0) {
     const isOutgoing = tx.fromUid === uid;
     const isPending = tx.status === 'pending';
     const isDeclined = tx.status === 'declined';
@@ -814,11 +814,27 @@
 
     const dateStr = new Date(tx.timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
 
+    const isUnread = tx.timestamp > lastLoginTime;
+    const isRecentSuccess = tx.status === 'completed' && tx.timestamp > (Date.now() - 3600000);
+    
+    let badgeHTML = '';
+    if (isPending) {
+       badgeHTML = `<span style="background:var(--pending); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Pending</span>`;
+    } else if (isDeclined) {
+       badgeHTML = `<span style="background:var(--declined); color:white; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Declined</span>`;
+    } else if (isUnread) {
+       badgeHTML = `<span style="background:var(--primary-light); color:var(--primary); padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">New</span>`;
+    } else if (isRecentSuccess) {
+       badgeHTML = `<span style="background:#dcfce7; color:#166534; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Completed</span>`;
+    } else if (tx.status === 'completed') {
+       badgeHTML = `<span style="background:var(--surface-subtle); color:var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:bold; margin-left:8px; text-transform:uppercase;">Completed</span>`;
+    }
+
     return `
       <div class="tx-item">
         <div class="tx-info">
-          <span class="tx-title">${title}</span>
-          <span class="tx-date">${dateStr} ${isPending ? '• Pending' : (isDeclined ? '• Declined' : '• Completed')}</span>
+          <span class="tx-title">${title}${badgeHTML}</span>
+          <span class="tx-date">${dateStr}</span>
         </div>
         <span class="tx-amt ${amtColorClass}">${sign}${tx.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} $VLC</span>
       </div>
@@ -879,8 +895,11 @@
       const fullListEl = document.getElementById('full-tx-list');
       const showAllBtnContainer = document.getElementById('show-all-container');
 
+      const lastLoginStr = window.currentUser?.metadata?.lastSignInTime;
+      const lastLoginTime = lastLoginStr ? new Date(lastLoginStr).getTime() : 0;
+
       if (!data) {
-        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
+        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No recent updates or pending requests.</div>`;
         if (fullListEl) fullListEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
         if (showAllBtnContainer) showAllBtnContainer.style.display = 'none';
         return;
@@ -893,20 +912,34 @@
       txs.sort((a,b) => b.timestamp - a.timestamp);
       
       if (txs.length === 0) {
-        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
+        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No recent updates or pending requests.</div>`;
         if (fullListEl) fullListEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No activity yet.</div>`;
         if (showAllBtnContainer) showAllBtnContainer.style.display = 'none';
         return;
       }
 
-      listEl.innerHTML = txs.slice(0, 5).map(tx => renderTxHTML(tx, uid)).join('');
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+      
+      const activeTxs = txs.filter(tx => {
+        const isPending = tx.status === 'pending';
+        const isUnread = tx.timestamp > lastLoginTime;
+        const isRecentSuccess = tx.status === 'completed' && tx.timestamp > oneHourAgo;
+
+        return isPending || isUnread || isRecentSuccess;
+      });
+
+      if (activeTxs.length === 0) {
+        listEl.innerHTML = `<div style="color:var(--text-muted); padding: 12px 0;">No recent updates or pending requests.</div>`;
+      } else {
+        listEl.innerHTML = activeTxs.map(tx => renderTxHTML(tx, uid, lastLoginTime)).join('');
+      }
       
       if (fullListEl) {
-        fullListEl.innerHTML = txs.map(tx => renderTxHTML(tx, uid)).join('');
+        fullListEl.innerHTML = txs.map(tx => renderTxHTML(tx, uid, lastLoginTime)).join('');
       }
 
       if (showAllBtnContainer) {
-        showAllBtnContainer.style.display = txs.length > 5 ? 'block' : 'none';
+        showAllBtnContainer.style.display = txs.length > 0 ? 'block' : 'none';
       }
     });
   }
